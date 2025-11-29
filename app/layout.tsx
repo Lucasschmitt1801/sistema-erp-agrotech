@@ -36,7 +36,7 @@ export default function RootLayout({
                 <span>Visão Geral</span>
               </Link>
 
-              <Link href="/novo-produto" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+              <Link href="/produtos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <Package size={20} />
                 <span>Produtos</span>
               </Link>
