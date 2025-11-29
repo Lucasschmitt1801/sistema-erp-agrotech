@@ -122,7 +122,12 @@ export default function Dashboard() {
               <BarChart data={dadosVendasSemanal} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} prefix="R$ " />
+                {/* CORREÇÃO AQUI: Removemos 'prefix' e usamos 'tickFormatter' */}
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tickFormatter={(value) => `R$ ${value}`} 
+                />
                 <Tooltip formatter={(value) => `R$ ${value}`} cursor={{fill: '#f3f4f6'}} wrapperStyle={{ borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                 <Bar dataKey="vendas" fill="#0a3d91" radius={[4, 4, 0, 0]} barSize={40} />
               </BarChart>
