@@ -4,72 +4,125 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { DollarSign, Package, AlertTriangle, Plus } from 'lucide-react'
-// Importando os gráficos da biblioteca Recharts
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 export default function Dashboard() {
+  const [loading, setLoading] = useState(true)
+  
+  // Estados para os Cards
   const [totalProdutos, setTotalProdutos] = useState(0)
   const [valorEstoque, setValorEstoque] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [itensBaixoEstoque, setItensBaixoEstoque] = useState(0)
 
-  // --- DADOS FICTÍCIOS PARA OS GRÁFICOS (Visualização) ---
-  const dadosVendasSemanal = [
-    { name: 'Seg', vendas: 780 },
-    { name: 'Ter', vendas: 50 },
-    { name: 'Qua', vendas: 250 },
-    { name: 'Qui', vendas: 20 },
-    { name: 'Sex', vendas: 450 },
-    { name: 'Sáb', vendas: 100 },
-  ];
+  // Estados para os Gráficos
+  const [dadosVendas, setDadosVendas] = useState<any[]>([])
+  const [dadosEstoque, setDadosEstoque] = useState<any[]>([])
 
-  // Dados para o gráfico de pizza (Ex: Categorias ou Status)
-  const dadosEstoquePizza = [
-    { name: 'Em Estoque', value: totalProdutos },
-    { name: 'Estoque Baixo', value: 2 }, // Exemplo fixo
-  ];
-  const CORES_PIZZA = ['#00C49F', '#FF8042']; // Verde e Laranja
-  // -------------------------------------------------------
-
+  const CORES_PIZZA = ['#0a3d91', '#e5e7eb']; // Azul e Cinza
 
   useEffect(() => {
-    async function fetchResumo() {
-      setLoading(true)
-      // Busca apenas o resumo para os cards do topo
-      const { data, error } = await supabase
-        .from('produtos')
-        .select('preco_custo, preco_venda')
-      
-      if (data) {
-        setTotalProdutos(data.length)
-        // Calcula o valor total que eles podem faturar com o estoque atual
-        const totalValor = data.reduce((acc, prod) => acc + (prod.preco_venda || 0), 0)
-        setValorEstoque(totalValor)
-      }
-      setLoading(false)
-    }
-    fetchResumo()
+    carregarDadosReais()
   }, [])
 
-  if (loading) return <div className="flex h-full items-center justify-center text-gray-500">Carregando painel...</div>
+  async function carregarDadosReais() {
+    setLoading(true)
+
+    // 1. Buscar Produtos (Para card de Total e Valor Potencial)
+    const { data: produtos } = await supabase.from('produtos').select('*')
+    
+    if (produtos) {
+      setTotalProdutos(produtos.length)
+      const totalValor = produtos.reduce((acc, prod) => acc + (prod.preco_venda || 0), 0)
+      setValorEstoque(totalValor)
+    }
+
+    // 2. Buscar Saldo de Estoque (Para o Gráfico de Pizza e Card de Alerta)
+    // Nota: Se ainda não fizemos entrada de estoque, isso virá vazio.
+    const { data: saldos } = await supabase.from('estoque_saldo').select('*')
+    
+    let totalPecasFisicas = 0
+    let baixoEstoqueCount = 0
+
+    if (saldos) {
+      saldos.forEach(item => {
+        totalPecasFisicas += item.quantidade
+        if (item.quantidade < 5) baixoEstoqueCount++ // Regra: Menos de 5 é baixo
+      })
+      setItensBaixoEstoque(baixoEstoqueCount)
+    }
+
+    // Montar dados do Gráfico de Pizza (Real vs Capacidade ou Disponível)
+    setDadosEstoque([
+      { name: 'Em Estoque', value: totalPecasFisicas },
+      { name: 'Sem Estoque', value: (produtos?.length || 0) - totalPecasFisicas } // Apenas visualização lógica
+    ])
+
+    // 3. Buscar Vendas dos Últimos 7 dias (Para o Gráfico de Barras)
+    const hoje = new Date()
+    const seteDiasAtras = new Date()
+    seteDiasAtras.setDate(hoje.getDate() - 7)
+
+    const { data: vendas } = await supabase
+      .from('vendas')
+      .select('created_at, valor_total')
+      .gte('created_at', seteDiasAtras.toISOString())
+
+    // Processar as vendas para agrupar por dia da semana
+    const vendasPorDia = processarVendasPorDia(vendas || [])
+    setDadosVendas(vendasPorDia)
+
+    setLoading(false)
+  }
+
+  // Função auxiliar para agrupar vendas por dia (Seg, Ter, Qua...)
+  function processarVendasPorDia(vendas: any[]) {
+    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+    const agrupado: any = {}
+
+    // Inicializa os últimos 7 dias com zero
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const nomeDia = diasSemana[d.getDay()]
+      agrupado[nomeDia] = 0 // Começa zerado
+    }
+
+    // Soma os valores reais do banco
+    vendas.forEach(venda => {
+      const dataVenda = new Date(venda.created_at)
+      const nomeDia = diasSemana[dataVenda.getDay()]
+      if (agrupado[nomeDia] !== undefined) {
+        agrupado[nomeDia] += venda.valor_total
+      }
+    })
+
+    // Transforma em array para o gráfico ler
+    return Object.keys(agrupado).map(dia => ({
+      name: dia,
+      vendas: agrupado[dia]
+    }))
+  }
+
+  if (loading) return <div className="flex h-full items-center justify-center text-gray-500 animate-pulse">Carregando dados reais...</div>
 
   return (
     <div>
-      {/* Cabeçalho da Página */}
+      {/* Cabeçalho */}
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Visão Geral</h1>
-        <Link href="/novo-produto" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+        <Link href="/novo-produto" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-md">
           <Plus size={20} />
           <span>Novo Produto</span>
         </Link>
       </header>
       
-      {/* --- CARDS DO TOPO --- */}
+      {/* --- CARDS (DADOS REAIS) --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         
-        {/* Card 1: Valor em Estoque (Potencial de Venda) */}
+        {/* Card 1 */}
         <div className="bg-white p-6 rounded-xl shadow-sm flex justify-between items-center relative overflow-hidden">
           <div>
-            <p className="text-sm font-medium text-gray-500 uppercase">Valor em Estoque (Venda)</p>
+            <p className="text-sm font-medium text-gray-500 uppercase">Potencial de Venda (Cadastro)</p>
             <h3 className="text-2xl font-bold text-gray-800 mt-1">
               R$ {valorEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
@@ -80,12 +133,12 @@ export default function Dashboard() {
           <div className="absolute left-0 top-0 h-full w-1 bg-green-500"></div>
         </div>
 
-        {/* Card 2: Total de Peças */}
+        {/* Card 2 */}
         <div className="bg-white p-6 rounded-xl shadow-sm flex justify-between items-center relative overflow-hidden">
           <div>
-            <p className="text-sm font-medium text-gray-500 uppercase">Peças em Estoque</p>
+            <p className="text-sm font-medium text-gray-500 uppercase">Produtos Cadastrados</p>
             <h3 className="text-2xl font-bold text-gray-800 mt-1">
-              {totalProdutos} <span className="text-sm font-normal text-gray-500">unidades</span>
+              {totalProdutos} <span className="text-sm font-normal text-gray-500">modelos</span>
             </h3>
           </div>
           <div className="bg-blue-100 p-3 rounded-full text-blue-600">
@@ -94,12 +147,12 @@ export default function Dashboard() {
           <div className="absolute left-0 top-0 h-full w-1 bg-blue-500"></div>
         </div>
 
-         {/* Card 3: Pendentes/Alertas (Exemplo Fixo) */}
+         {/* Card 3 */}
          <div className="bg-white p-6 rounded-xl shadow-sm flex justify-between items-center relative overflow-hidden">
           <div>
-            <p className="text-sm font-medium text-gray-500 uppercase">Estoque Baixo</p>
+            <p className="text-sm font-medium text-gray-500 uppercase">Alerta Estoque Baixo</p>
             <h3 className="text-2xl font-bold text-gray-800 mt-1">
-              2 <span className="text-sm font-normal text-gray-500">itens</span>
+              {itensBaixoEstoque} <span className="text-sm font-normal text-gray-500">itens</span>
             </h3>
           </div>
           <div className="bg-yellow-100 p-3 rounded-full text-yellow-600">
@@ -107,72 +160,38 @@ export default function Dashboard() {
           </div>
           <div className="absolute left-0 top-0 h-full w-1 bg-yellow-500"></div>
         </div>
-
       </div>
 
 
-      {/* --- ÁREA DOS GRÁFICOS --- */}
+      {/* --- GRÁFICOS (DADOS REAIS) --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-96">
         
-        {/* GRÁFICO DE BARRAS (Vendas Semanal) - Ocupa 2 colunas */}
+        {/* GRÁFICO DE VENDAS */}
         <div className="bg-white p-6 rounded-xl shadow-sm lg:col-span-2 flex flex-col">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Vendas da Semana (R$) - Simulacão</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-4">Vendas da Semana (R$)</h2>
           <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dadosVendasSemanal} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                {/* CORREÇÃO AQUI: Removemos 'prefix' e usamos 'tickFormatter' */}
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tickFormatter={(value) => `R$ ${value}`} 
-                />
-                <Tooltip formatter={(value) => `R$ ${value}`} cursor={{fill: '#f3f4f6'}} wrapperStyle={{ borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Bar dataKey="vendas" fill="#0a3d91" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+            {dadosVendas.every(d => d.vendas === 0) ? (
+              <div className="h-full flex items-center justify-center text-gray-400 text-sm italic">
+                Nenhuma venda registrada nos últimos 7 dias.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dadosVendas} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `R$ ${val}`} />
+                  <Tooltip formatter={(value) => `R$ ${value}`} cursor={{fill: '#f3f4f6'}} />
+                  <Bar dataKey="vendas" fill="#0a3d91" radius={[4, 4, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
-        {/* GRÁFICO DE PIZZA (Status Estoque) - Ocupa 1 coluna */}
+        {/* GRÁFICO DE ESTOQUE */}
         <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Status do Estoque</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-4">Estoque Físico</h2>
           <div className="flex-1 w-full min-h-0 flex items-center justify-center relative">
-             {/* Gráfico Donut */}
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={dadosEstoquePizza}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60} // Faz o buraco no meio (Donut)
-                  outerRadius={90}
-                  fill="#8884d8"
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {dadosEstoquePizza.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CORES_PIZZA[index % CORES_PIZZA.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Texto no meio do Donut */}
-             <div className="absolute text-center">
-                <p className="text-3xl font-bold text-gray-800">{totalProdutos}</p>
-                <p className="text-xs text-gray-500 uppercase">Total Peças</p>
-            </div>
-          </div>
-           {/* Legenda do Gráfico */}
-          <div className="flex justify-center gap-4 mt-4 text-sm text-gray-600">
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#00C49F]"></div> Em dia</div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#FF8042]"></div> Baixo</div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  )
-}
+            
+            {/* Verifica se tem dados de estoque */}
+            {dadosEstoque[0].value ===
