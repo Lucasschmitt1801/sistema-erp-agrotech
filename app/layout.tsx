@@ -9,7 +9,8 @@ import {
   LogOut, 
   DollarSign, 
   Truck, 
-  FileText 
+  FileText,
+  User // <--- Ícone de Clientes Adicionado
 } from 'lucide-react'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -26,7 +27,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-br">
-      {/* Fundo Branco e layout flexível para sidebar fixa */}
       <body className={`${inter.className} bg-white h-screen flex overflow-hidden`}>
         
         {/* --- BARRA LATERAL (SIDEBAR) --- */}
@@ -63,7 +63,12 @@ export default function RootLayout({
                 <span>Envios Online</span>
               </Link>
 
-              {/* Link Novo: Pedidos B2B */}
+              {/* --- NOVO LINK: CLIENTES --- */}
+              <Link href="/clientes" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <User size={20} />
+                <span>Clientes / Revenda</span>
+              </Link>
+
               <Link href="/pedidos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <FileText size={20} />
                 <span>Pedidos B2B</span>
