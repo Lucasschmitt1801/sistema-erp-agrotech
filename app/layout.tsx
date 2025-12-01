@@ -2,7 +2,15 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import Link from 'next/link'
-import { LayoutDashboard, Package, ShoppingCart, LogOut, DollarSign, Truck } from 'lucide-react'
+import { 
+  LayoutDashboard, 
+  Package, 
+  ShoppingCart, 
+  LogOut, 
+  DollarSign, 
+  Truck, 
+  FileText 
+} from 'lucide-react'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,7 +26,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-br">
-      {/* MUDANÇA: bg-white para fundo branco total */}
+      {/* Fundo Branco e layout flexível para sidebar fixa */}
       <body className={`${inter.className} bg-white h-screen flex overflow-hidden`}>
         
         {/* --- BARRA LATERAL (SIDEBAR) --- */}
@@ -26,12 +34,15 @@ export default function RootLayout({
           <div>
             {/* Logo / Título Customizado */}
             <div className="p-6 flex items-center gap-2 font-bold text-xl border-b border-blue-800">
-              <div className="bg-yellow-400 text-blue-900 p-1 rounded font-serif font-extrabold">H</div>
+              <div className="bg-yellow-400 text-blue-900 p-1 rounded font-serif font-extrabold w-8 h-8 flex items-center justify-center">
+                H
+              </div>
               <span>Haras do Sul</span>
             </div>
 
             {/* Menu de Navegação */}
             <nav className="mt-6 flex flex-col gap-1 p-2">
+              
               <Link href="/" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <LayoutDashboard size={20} />
                 <span>Visão Geral</span>
@@ -47,10 +58,15 @@ export default function RootLayout({
                 <span>PDV / Vendas</span>
               </Link>
 
-              {/* NOVO LINK: Envios/Correios */}
               <Link href="/envios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <Truck size={20} />
                 <span>Envios Online</span>
+              </Link>
+
+              {/* Link Novo: Pedidos B2B */}
+              <Link href="/pedidos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <FileText size={20} />
+                <span>Pedidos B2B</span>
               </Link>
 
               <Link href="/financeiro" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
@@ -62,9 +78,11 @@ export default function RootLayout({
                 <div className="bg-blue-500 w-5 h-5 flex items-center justify-center rounded text-xs font-bold">R</div>
                 <span>Relatório DRE</span>
               </Link>
+
             </nav>
           </div>
 
+          {/* Botão Sair */}
           <div className="p-4 border-t border-blue-800">
             <button className="flex items-center gap-3 p-3 w-full text-blue-100 hover:bg-blue-800 rounded-lg transition">
               <LogOut size={20} />
