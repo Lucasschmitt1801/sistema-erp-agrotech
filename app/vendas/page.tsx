@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, ShoppingCart, Trash2, CheckCircle, Calculator } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function PDV() {
   const router = useRouter()
@@ -60,7 +61,7 @@ export default function PDV() {
     setProcessando(true)
 
     try {
-      // 1. Criar Venda
+      // 1. Criar Venda no Banco
       const { data: venda, error: erroVenda } = await supabase
         .from('vendas')
         .insert([{ valor_total: total, forma_pagamento: pagamento }])
@@ -68,7 +69,7 @@ export default function PDV() {
 
       if (erroVenda) throw erroVenda
 
-      // 2. Itens
+      // 2. Criar os Itens da Venda
       const itensParaSalvar = carrinho.map(item => ({
         venda_id: venda.id,
         produto_id: item.id,
@@ -79,9 +80,9 @@ export default function PDV() {
       const { error: erroItens } = await supabase.from('venda_itens').insert(itensParaSalvar)
       if (erroItens) throw erroItens
 
-      // 3. Baixar Estoque (Importante!)
+      // 3. Baixar Estoque (Passo Crítico)
       for (const item of carrinho) {
-        // Busca o saldo atual
+        // Busca o saldo atual e o ID do registro de saldo
         const { data: saldos } = await supabase
             .from('estoque_saldo')
             .select('quantidade, id')
@@ -90,6 +91,7 @@ export default function PDV() {
 
         if (saldos && saldos.length > 0) {
             const saldoAtual = saldos[0].quantidade
+            // Atualiza subtraindo a quantidade vendida
             await supabase
                 .from('estoque_saldo')
                 .update({ quantidade: saldoAtual - item.qtd })
@@ -97,9 +99,14 @@ export default function PDV() {
         }
       }
 
+      // 4. Sucesso
       alert(`Venda Finalizada! ${troco > 0 ? `Entregar troco de R$ ${troco.toFixed(2)}` : ''}`)
+      
+      // Limpa tudo
       setCarrinho([])
       setValorRecebido('')
+      
+      // Volta para a Home para ver os gráficos atualizados
       router.push('/') 
       
     } catch (error: any) {
@@ -117,15 +124,14 @@ export default function PDV() {
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-6 text-gray-800">
       
-      {/* LADO ESQUERDO: Catálogo */}
+      {/* LADO ESQUERDO: Catálogo de Produtos */}
       <div className="flex-1 flex flex-col bg-white rounded-xl shadow border border-gray-200">
         <div className="p-4 border-b border-gray-200 bg-gray-50">
           <div className="relative">
             <Search className="absolute left-3 top-3 text-gray-400" size={20} />
             <input 
-              // CORRIGIDO: text-gray-900 para garantir letra preta
               className="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-blue-500 text-gray-900 bg-white"
-              placeholder="Buscar produto..."
+              placeholder="Buscar produto por nome ou SKU..."
               value={busca}
               onChange={e => setBusca(e.target.value)}
             />
@@ -147,8 +153,16 @@ export default function PDV() {
         </div>
       </div>
 
-      {/* LADO DIREITO: Carrinho */}
+      {/* LADO DIREITO: Carrinho e Pagamento */}
       <div className="w-full md:w-96 bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col">
+        
+        {/* Link para o Histórico */}
+        <div className="flex justify-end p-2 bg-gray-50 rounded-t-xl">
+            <Link href="/vendas/historico" className="text-xs text-blue-600 hover:underline font-bold flex items-center gap-1">
+             Ver Histórico de Vendas
+            </Link>
+        </div>
+        
         <div className="p-4 bg-gray-50 border-b border-gray-200 font-bold text-gray-700 flex items-center gap-2">
           <ShoppingCart size={20} /> Carrinho
         </div>
@@ -183,26 +197,25 @@ export default function PDV() {
             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Forma de Pagamento</label>
                 <select 
-                // CORRIGIDO: text-gray-900
-                className="w-full p-2 border rounded-md text-gray-900 bg-white"
-                value={pagamento}
-                onChange={e => setPagamento(e.target.value)}
+                  className="w-full p-2 border rounded-md text-gray-900 bg-white"
+                  value={pagamento}
+                  onChange={e => setPagamento(e.target.value)}
                 >
-                <option value="DINHEIRO">Dinheiro</option>
-                <option value="PIX">PIX</option>
-                <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                <option value="CARTAO_DEBITO">Cartão Débito</option>
+                  <option value="DINHEIRO">Dinheiro</option>
+                  <option value="PIX">PIX</option>
+                  <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                  <option value="CARTAO_DEBITO">Cartão Débito</option>
                 </select>
             </div>
 
-            {/* Se for Dinheiro, mostra calculadora de troco */}
+            {/* Calculadora de Troco (Só aparece se for Dinheiro) */}
             {pagamento === 'DINHEIRO' && (
                 <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
                     <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Valor Recebido (R$)</label>
                     <input 
                         type="number"
                         placeholder="0,00"
-                        className="w-full p-2 border rounded text-gray-900"
+                        className="w-full p-2 border rounded text-gray-900 bg-white"
                         value={valorRecebido}
                         onChange={e => setValorRecebido(e.target.value)}
                     />
@@ -223,7 +236,7 @@ export default function PDV() {
             disabled={carrinho.length === 0 || processando || (pagamento === 'DINHEIRO' && troco < 0)}
             className="w-full bg-green-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-green-700 transition disabled:bg-gray-300 flex justify-center items-center gap-2"
           >
-            {processando ? 'Processando...' : <><CheckCircle /> Finalizar</>}
+            {processando ? 'Processando...' : <><CheckCircle /> Finalizar Venda</>}
           </button>
         </div>
       </div>
