@@ -41,14 +41,11 @@ export default function RootLayout({
                 <span>Produtos</span>
               </Link>
 
-              {/* Links futuros (inativos por enquanto) */}
-              <div className="flex items-center gap-3 p-3 text-blue-300 cursor-not-allowed opacity-60">
-                <ShoppingCart size={20} />
-                <span>Vendas (Em breve)</span>
-              </div>
-            </nav>
-          </div>
-
+             {/* Link de Vendas - Agora Ativo e Funcional */}
+            <Link href="/vendas" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+              <ShoppingCart size={20} />
+              <span>Realizar Venda</span>
+            </Link>
           {/* Botão Sair */}
           <div className="p-4 border-t border-blue-800">
             <button className="flex items-center gap-3 p-3 w-full text-blue-100 hover:bg-blue-800 rounded-lg transition">
