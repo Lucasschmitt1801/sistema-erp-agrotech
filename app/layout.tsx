@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import Link from 'next/link'
-import { LayoutDashboard, Package, ShoppingCart, LogOut } from 'lucide-react'
+// AQUI ESTAVA O ERRO: Adicionei o DollarSign na lista de importações abaixo
+import { LayoutDashboard, Package, ShoppingCart, LogOut, DollarSign } from 'lucide-react'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -35,27 +36,28 @@ export default function RootLayout({
                 <LayoutDashboard size={20} />
                 <span>Visão Geral</span>
               </Link>
-              
-              <Link href="/financeiro" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
-                 <DollarSign size={20} />
-                 <span>Financeiro</span>
-              </Link>
-
-              <Link href="/relatorios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
-                  <div className="bg-blue-500 w-5 h-5 flex items-center justify-center rounded text-xs font-bold">R</div>
-                  <span>Relatório DRE</span>
-              </Link>
 
               <Link href="/produtos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <Package size={20} />
                 <span>Produtos</span>
               </Link>
 
-              {/* Link de Vendas - Agora Ativo e Funcional */}
               <Link href="/vendas" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <ShoppingCart size={20} />
                 <span>Realizar Venda</span>
               </Link>
+
+              {/* NOVOS LINKS */}
+              <Link href="/financeiro" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                 <DollarSign size={20} />
+                 <span>Financeiro</span>
+              </Link>
+
+              <Link href="/relatorios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <div className="bg-blue-500 w-5 h-5 flex items-center justify-center rounded text-xs font-bold">R</div>
+                <span>Relatório DRE</span>
+              </Link>
+
             </nav>
           </div>
 
