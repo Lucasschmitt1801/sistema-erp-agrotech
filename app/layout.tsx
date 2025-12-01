@@ -35,6 +35,16 @@ export default function RootLayout({
                 <LayoutDashboard size={20} />
                 <span>Visão Geral</span>
               </Link>
+              
+              <Link href="/financeiro" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                 <DollarSign size={20} />
+                 <span>Financeiro</span>
+              </Link>
+
+              <Link href="/relatorios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                  <div className="bg-blue-500 w-5 h-5 flex items-center justify-center rounded text-xs font-bold">R</div>
+                  <span>Relatório DRE</span>
+              </Link>
 
               <Link href="/produtos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <Package size={20} />
