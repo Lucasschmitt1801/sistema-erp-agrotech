@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, FileText, ShoppingBag, ArrowLeft, CheckCircle, Truck, Package, XCircle, DollarSign, Save } from 'lucide-react'
+// CORREÇÃO: Adicionei 'User' na lista de imports abaixo
+import { Plus, FileText, ShoppingBag, ArrowLeft, CheckCircle, Package, XCircle, DollarSign, Save, User } from 'lucide-react'
 
 export default function Pedidos() {
   const [view, setView] = useState('LISTA') 
@@ -142,7 +143,7 @@ export default function Pedidos() {
 
     alert('Pedido salvo!')
     carregarDadosIniciais()
-    if(!pedidoId) setView('LISTA') // Se for novo, volta pra lista. Se for edição, fica na tela.
+    if(!pedidoId) setView('LISTA') 
   }
 
   // --- MÁQUINA DE ESTADOS (FLUXO) ---
