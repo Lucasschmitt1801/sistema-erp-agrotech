@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import Link from 'next/link'
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Settings } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, LogOut } from 'lucide-react'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -31,7 +31,7 @@ export default function RootLayout({
 
             {/* Menu de Navegação */}
             <nav className="mt-6 flex flex-col gap-1 p-2">
-              <Link href="/" className="flex items-center gap-3 p-3 bg-blue-800 rounded-lg transition hover:bg-blue-700">
+              <Link href="/" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <LayoutDashboard size={20} />
                 <span>Visão Geral</span>
               </Link>
@@ -41,11 +41,14 @@ export default function RootLayout({
                 <span>Produtos</span>
               </Link>
 
-             {/* Link de Vendas - Agora Ativo e Funcional */}
-            <Link href="/vendas" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
-              <ShoppingCart size={20} />
-              <span>Realizar Venda</span>
-            </Link>
+              {/* Link de Vendas - Agora Ativo e Funcional */}
+              <Link href="/vendas" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <ShoppingCart size={20} />
+                <span>Realizar Venda</span>
+              </Link>
+            </nav>
+          </div>
+
           {/* Botão Sair */}
           <div className="p-4 border-t border-blue-800">
             <button className="flex items-center gap-3 p-3 w-full text-blue-100 hover:bg-blue-800 rounded-lg transition">
