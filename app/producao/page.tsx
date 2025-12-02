@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Trash2, ArrowRight, Layers, Save } from 'lucide-react'
+import { Plus, Trash2, ArrowRight, Layers } from 'lucide-react'
 
 export default function FichaTecnica() {
   const [produtos, setProdutos] = useState<any[]>([])
   const [insumos, setInsumos] = useState<any[]>([])
   const [produtoSelecionado, setProdutoSelecionado] = useState<string>('')
   const [ficha, setFicha] = useState<any[]>([])
+  const [custoTotal, setCustoTotal] = useState(0)
   
-  // Novo item na ficha
   const [itemNovo, setItemNovo] = useState({ insumo_id: '', quantidade: '' })
 
   useEffect(() => {
@@ -32,7 +32,16 @@ export default function FichaTecnica() {
     const { data } = await supabase.from('ficha_tecnica')
         .select('*, insumos(nome, unidade, custo_medio)')
         .eq('produto_id', idProd)
-    if(data) setFicha(data)
+    
+    if(data) {
+        setFicha(data)
+        // Calcular Custo Total Atualizado
+        const total = data.reduce((acc, item) => acc + (item.quantidade_necessaria * (item.insumos?.custo_medio || 0)), 0)
+        setCustoTotal(total)
+        
+        // MÁGICA AQUI: Atualiza o preço de custo do produto no banco com o valor real calculado
+        await supabase.from('produtos').update({ preco_custo: total }).eq('id', idProd)
+    }
   }
 
   async function adicionarItem(e: React.FormEvent) {
@@ -46,16 +55,13 @@ export default function FichaTecnica() {
     })
     
     setItemNovo({ insumo_id: '', quantidade: '' })
-    carregarFicha(produtoSelecionado)
+    carregarFicha(produtoSelecionado) // Recarrega e atualiza o custo do produto
   }
 
   async function removerItem(id: string) {
     await supabase.from('ficha_tecnica').delete().eq('id', id)
-    carregarFicha(produtoSelecionado)
+    carregarFicha(produtoSelecionado) // Recarrega e atualiza o custo do produto
   }
-
-  // Cálculo do Custo Total de Matéria Prima
-  const custoTotal = ficha.reduce((acc, item) => acc + (item.quantidade_necessaria * (item.insumos?.custo_medio || 0)), 0)
 
   return (
     <div className="max-w-6xl mx-auto text-gray-800 grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-100px)]">
@@ -82,11 +88,11 @@ export default function FichaTecnica() {
                 <div className="flex justify-between items-end border-b pb-4 mb-4">
                     <div>
                         <h2 className="font-bold text-xl">Ficha Técnica</h2>
-                        <p className="text-sm text-gray-500">Lista de materiais para produzir 1 unidade</p>
+                        <p className="text-sm text-gray-500">Ao editar aqui, o custo do produto atualiza automaticamente.</p>
                     </div>
                     <div className="text-right">
-                        <p className="text-xs text-gray-500 uppercase font-bold">Custo Estimado (Matéria-Prima)</p>
-                        <p className="text-2xl font-bold text-green-600">R$ {custoTotal.toFixed(2)}</p>
+                        <p className="text-xs text-gray-500 uppercase font-bold">Custo de Produção</p>
+                        <p className="text-3xl font-bold text-green-600">R$ {custoTotal.toFixed(2)}</p>
                     </div>
                 </div>
 
@@ -95,7 +101,7 @@ export default function FichaTecnica() {
                     <select className="flex-1 border p-2 rounded bg-white text-sm" 
                         value={itemNovo.insumo_id} onChange={e => setItemNovo({...itemNovo, insumo_id: e.target.value})}>
                         <option value="">+ Adicionar Insumo à receita...</option>
-                        {insumos.map(i => <option key={i.id} value={i.id}>{i.nome} ({i.unidade})</option>)}
+                        {insumos.map(i => <option key={i.id} value={i.id}>{i.nome} ({i.unidade}) - R$ {i.custo_medio}</option>)}
                     </select>
                     <input type="number" step="0.0001" className="w-24 border p-2 rounded bg-white text-sm" placeholder="Qtd"
                         value={itemNovo.quantidade} onChange={e => setItemNovo({...itemNovo, quantidade: e.target.value})} />
@@ -109,7 +115,7 @@ export default function FichaTecnica() {
                             <tr>
                                 <th className="p-3 text-left">Insumo</th>
                                 <th className="p-3 text-center">Qtd Necessária</th>
-                                <th className="p-3 text-right">Custo Aprox.</th>
+                                <th className="p-3 text-right">Custo Parcial</th>
                                 <th className="p-3"></th>
                             </tr>
                         </thead>
