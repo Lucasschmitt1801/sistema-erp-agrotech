@@ -10,7 +10,9 @@ import {
   DollarSign, 
   Truck, 
   FileText,
-  User // <--- Ícone de Clientes Adicionado
+  User,
+  Layers,       // Para Ficha Técnica
+  ShoppingBag   // Para Estoque de Insumos
 } from 'lucide-react'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -30,7 +32,7 @@ export default function RootLayout({
       <body className={`${inter.className} bg-white h-screen flex overflow-hidden`}>
         
         {/* --- BARRA LATERAL (SIDEBAR) --- */}
-        <aside className="w-64 bg-[#0a3d91] text-white flex flex-col justify-between shadow-xl z-10">
+        <aside className="w-64 bg-[#0a3d91] text-white flex flex-col justify-between shadow-xl z-10 overflow-y-auto">
           <div>
             {/* Logo / Título Customizado */}
             <div className="p-6 flex items-center gap-2 font-bold text-xl border-b border-blue-800">
@@ -48,25 +50,14 @@ export default function RootLayout({
                 <span>Visão Geral</span>
               </Link>
 
-              <Link href="/produtos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
-                <Package size={20} />
-                <span>Produtos</span>
-              </Link>
+              {/* --- MÓDULO COMERCIAL --- */}
+              <div className="mt-4 mb-2 px-3 text-xs font-bold text-blue-300 uppercase tracking-wider">
+                Comercial
+              </div>
 
               <Link href="/vendas" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                 <ShoppingCart size={20} />
                 <span>PDV / Vendas</span>
-              </Link>
-
-              <Link href="/envios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
-                <Truck size={20} />
-                <span>Envios Online</span>
-              </Link>
-
-              {/* --- NOVO LINK: CLIENTES --- */}
-              <Link href="/clientes" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
-                <User size={20} />
-                <span>Clientes / Revenda</span>
               </Link>
 
               <Link href="/pedidos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
@@ -74,9 +65,44 @@ export default function RootLayout({
                 <span>Pedidos B2B</span>
               </Link>
 
+              <Link href="/clientes" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <User size={20} />
+                <span>Clientes / Revenda</span>
+              </Link>
+
+              <Link href="/envios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <Truck size={20} />
+                <span>Envios Online</span>
+              </Link>
+
+              {/* --- MÓDULO PRODUÇÃO (NOVO) --- */}
+              <div className="mt-4 mb-2 px-3 text-xs font-bold text-blue-300 uppercase tracking-wider">
+                Produção
+              </div>
+
+              <Link href="/produtos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <Package size={20} />
+                <span>Produtos Prontos</span>
+              </Link>
+
+              <Link href="/producao" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <Layers size={20} />
+                <span>Fichas Técnicas</span>
+              </Link>
+
+              <Link href="/insumos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
+                <ShoppingBag size={20} />
+                <span>Estoque Insumos</span>
+              </Link>
+
+              {/* --- MÓDULO FINANCEIRO --- */}
+              <div className="mt-4 mb-2 px-3 text-xs font-bold text-blue-300 uppercase tracking-wider">
+                Financeiro
+              </div>
+
               <Link href="/financeiro" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
                  <DollarSign size={20} />
-                 <span>Financeiro</span>
+                 <span>Contas & Fluxo</span>
               </Link>
 
               <Link href="/relatorios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition">
