@@ -230,3 +230,13 @@ export default function DRE() {
           </div>
           <div className="text-right">
             <span className="text-4xl font-bold block">R$ {dados.lucro.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+            <span className="text-sm opacity-80 font-medium">Margem Líquida: {dados.margem.toFixed(1)}%</span>
+          </div>
+        </div>
+
+      </div>
+      
+      {loading && <p className="text-center mt-4 text-gray-400 animate-pulse">Recalculando dados...</p>}
+    </div>
+  )
+}
