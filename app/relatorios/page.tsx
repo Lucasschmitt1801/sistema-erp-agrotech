@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Calendar, ChevronDown, ChevronUp, Printer } from 'lucide-react'
+import { Calendar, ChevronDown, ChevronUp, Printer, Clock } from 'lucide-react'
 
 export default function DRE() {
   const [loading, setLoading] = useState(true)
+  
+  // Filtros
+  const [modo, setModo] = useState<'MES' | 'DIA'>('MES')
   const [mesAno, setMesAno] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
+  const [dataDia, setDataDia] = useState(new Date().toISOString().slice(0, 10)) // YYYY-MM-DD
+
   const [detalhesVisiveis, setDetalhesVisiveis] = useState(false)
 
   const [dados, setDados] = useState({ 
@@ -21,26 +26,38 @@ export default function DRE() {
   // Para o detalhamento
   const [despesasPorCategoria, setDespesasPorCategoria] = useState<any[]>([])
 
+  // Recalcula sempre que mudar o modo ou as datas
   useEffect(() => {
     calcularDRE()
-  }, [mesAno])
+  }, [modo, mesAno, dataDia])
 
   async function calcularDRE() {
     setLoading(true)
     
-    // Definir intervalo do mês
-    const [ano, mes] = mesAno.split('-')
-    const inicio = new Date(parseInt(ano), parseInt(mes) - 1, 1).toISOString()
-    const fim = new Date(parseInt(ano), parseInt(mes), 0, 23, 59, 59).toISOString()
+    let inicio = ''
+    let fim = ''
 
-    // 1. Receita (Vendas do mês)
+    // --- LÓGICA DE DATA INTELIGENTE ---
+    if (modo === 'MES') {
+        const [ano, mes] = mesAno.split('-')
+        // Primeiro dia do mês 00:00:00
+        inicio = new Date(parseInt(ano), parseInt(mes) - 1, 1).toISOString()
+        // Último dia do mês 23:59:59
+        fim = new Date(parseInt(ano), parseInt(mes), 0, 23, 59, 59, 999).toISOString()
+    } else {
+        // Modo DIA
+        inicio = `${dataDia}T00:00:00.000Z` // Começo do dia
+        fim = `${dataDia}T23:59:59.999Z`    // Fim do dia
+    }
+
+    // 1. Receita (Vendas no período)
     const { data: vendas } = await supabase.from('vendas')
         .select('valor_total, id')
         .gte('created_at', inicio).lte('created_at', fim)
     
     const receita = vendas?.reduce((acc, v) => acc + v.valor_total, 0) || 0
 
-    // 2. Custo (CMV) - Baseado nos itens das vendas desse mês
+    // 2. Custo (CMV) - Baseado nos itens das vendas desse período
     let custoProd = 0
     if (vendas && vendas.length > 0) {
         const idsVendas = vendas.map(v => v.id)
@@ -53,11 +70,11 @@ export default function DRE() {
         })
     }
 
-    // 3. Financeiro (Despesas e Receitas Extras do mês)
+    // 3. Financeiro (Despesas e Receitas Extras no período)
     const { data: lancamentos } = await supabase.from('despesas')
         .select('valor, tipo, categoria')
         .gte('vencimento', inicio).lte('vencimento', fim)
-        .eq('status', 'PAGO') // DRE geralmente é regime de caixa (o que pagou/recebeu)
+        .eq('status', 'PAGO') 
     
     let totalDespesas = 0
     let totalOutrasReceitas = 0
@@ -66,7 +83,6 @@ export default function DRE() {
     lancamentos?.forEach((item: any) => {
         if (item.tipo === 'SAIDA') {
             totalDespesas += item.valor
-            // Agrupar por categoria
             const cat = item.categoria || 'Geral'
             categorias[cat] = (categorias[cat] || 0) + item.valor
         } else if (item.tipo === 'ENTRADA') {
@@ -74,7 +90,6 @@ export default function DRE() {
         }
     })
 
-    // Converter objeto de categorias para array ordenado
     const listaCategorias = Object.keys(categorias)
         .map(key => ({ nome: key, valor: categorias[key] }))
         .sort((a, b) => b.valor - a.valor)
@@ -97,17 +112,37 @@ export default function DRE() {
           Relatório DRE
         </h1>
         
-        <div className="flex gap-2">
-            <div className="flex items-center gap-2 bg-white p-2 rounded-lg shadow border border-gray-200">
-            <Calendar size={20} className="text-gray-500"/>
-            <input 
-                type="month" 
-                className="outline-none text-gray-700 font-bold bg-transparent cursor-pointer"
-                value={mesAno}
-                onChange={e => setMesAno(e.target.value)}
-            />
+        <div className="flex flex-col sm:flex-row gap-3 items-center bg-gray-100 p-1.5 rounded-xl border border-gray-200">
+            {/* Seletor de Modo (Abas) */}
+            <div className="flex bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+                <button 
+                    onClick={() => setModo('MES')}
+                    className={`px-4 py-2 text-sm font-bold flex items-center gap-2 transition ${modo === 'MES' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                    <Calendar size={16}/> Por Mês
+                </button>
+                <div className="w-px bg-gray-200"></div>
+                <button 
+                    onClick={() => setModo('DIA')}
+                    className={`px-4 py-2 text-sm font-bold flex items-center gap-2 transition ${modo === 'DIA' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                    <Clock size={16}/> Por Dia
+                </button>
             </div>
-            <button onClick={() => window.print()} className="bg-gray-100 p-2 rounded-lg hover:bg-gray-200 text-gray-600">
+
+            {/* Input de Data (Muda conforme o modo) */}
+            <div className="bg-white px-2 py-1.5 rounded-lg border border-gray-300 shadow-sm">
+                {modo === 'MES' ? (
+                    <input type="month" className="outline-none text-gray-700 font-bold bg-transparent cursor-pointer"
+                        value={mesAno} onChange={e => setMesAno(e.target.value)} />
+                ) : (
+                    <input type="date" className="outline-none text-gray-700 font-bold bg-transparent cursor-pointer"
+                        value={dataDia} onChange={e => setDataDia(e.target.value)} />
+                )}
+            </div>
+
+            {/* Botão Imprimir */}
+            <button onClick={() => window.print()} className="bg-white p-2 rounded-lg hover:bg-blue-50 text-gray-600 border border-gray-300 shadow-sm" title="Imprimir">
                 <Printer size={20}/>
             </button>
         </div>
@@ -117,7 +152,7 @@ export default function DRE() {
       <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200 print:shadow-none print:border-0">
         
         <div className="bg-gray-50 p-4 border-b border-gray-200 text-center text-sm text-gray-500 uppercase tracking-widest font-bold">
-            Competência: {mesAno}
+            Competência: {modo === 'MES' ? mesAno : new Date(dataDia + 'T12:00:00').toLocaleDateString()}
         </div>
 
         {/* 1. Receita */}
@@ -195,13 +230,3 @@ export default function DRE() {
           </div>
           <div className="text-right">
             <span className="text-4xl font-bold block">R$ {dados.lucro.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-            <span className="text-sm opacity-80 font-medium">Margem Líquida: {dados.margem.toFixed(1)}%</span>
-          </div>
-        </div>
-
-      </div>
-      
-      {loading && <p className="text-center mt-4 text-gray-400 animate-pulse">Recalculando dados...</p>}
-    </div>
-  )
-}
