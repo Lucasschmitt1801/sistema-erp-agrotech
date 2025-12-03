@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import Link from 'next/link'
-import Image from 'next/image' // Importante para usar o logo
+import Image from 'next/image'
 import { 
   LayoutDashboard, Package, ShoppingCart, LogOut, DollarSign, Truck, FileText, User, Layers, ShoppingBag, Settings 
 } from 'lucide-react'
@@ -17,50 +17,90 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-br">
-      <body className={`${inter.className} bg-white h-screen flex overflow-hidden`}>
+      <body className={`${inter.className} bg-[#f5f5f0] h-screen flex overflow-hidden`}>
         
-        <aside className="w-64 bg-[#0a3d91] text-white flex flex-col justify-between shadow-xl z-10 overflow-y-auto">
+        {/* --- BARRA LATERAL (SIDEBAR) --- */}
+        {/* Cor alterada para Marrom Café (#5d4a2f) */}
+        <aside className="w-64 bg-[#5d4a2f] text-[#dedbcb] flex flex-col justify-between shadow-2xl z-10 overflow-y-auto font-medium">
           <div>
-            {/* LOGO REAL AQUI */}
-            <div className="p-6 border-b border-blue-800 flex justify-center">
-               {/* Certifique-se que logo.png está na pasta public */}
+            {/* LOGO */}
+            <div className="p-6 border-b border-[#8f7355]/30 flex justify-center bg-[#5d4a2f]">
                <div className="relative w-40 h-40">
+                 {/* O sistema vai buscar a imagem 'logo.png' dentro da pasta public */}
                  <Image src="/logo.png" alt="Haras do Sul" fill className="object-contain" />
                </div>
             </div>
 
-            <nav className="mt-6 flex flex-col gap-1 p-2">
-              <Link href="/" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><LayoutDashboard size={20}/><span>Visão Geral</span></Link>
+            <nav className="mt-6 flex flex-col gap-1 p-3">
+              
+              <Link href="/" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors duration-200">
+                <LayoutDashboard size={20}/><span>Visão Geral</span>
+              </Link>
 
-              <div className="mt-4 mb-2 px-3 text-xs font-bold text-blue-300 uppercase tracking-wider">Comercial</div>
-              <Link href="/vendas" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><ShoppingCart size={20}/><span>PDV / Vendas</span></Link>
-              <Link href="/pedidos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><FileText size={20}/><span>Pedidos B2B</span></Link>
-              <Link href="/clientes" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><User size={20}/><span>Clientes / Revenda</span></Link>
-              <Link href="/envios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><Truck size={20}/><span>Envios Online</span></Link>
+              {/* MÓDULO COMERCIAL */}
+              <div className="mt-6 mb-2 px-3 text-xs font-bold text-[#dedbcb] opacity-60 uppercase tracking-widest">
+                Comercial
+              </div>
 
-              <div className="mt-4 mb-2 px-3 text-xs font-bold text-blue-300 uppercase tracking-wider">Produção</div>
-              <Link href="/produtos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><Package size={20}/><span>Produtos Prontos</span></Link>
-              <Link href="/producao" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><Layers size={20}/><span>Fichas Técnicas</span></Link>
-              <Link href="/insumos" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><ShoppingBag size={20}/><span>Estoque Insumos</span></Link>
+              <Link href="/vendas" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                <ShoppingCart size={20}/><span>PDV / Vendas</span>
+              </Link>
+              <Link href="/pedidos" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                <FileText size={20}/><span>Pedidos B2B</span>
+              </Link>
+              <Link href="/clientes" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                <User size={20}/><span>Clientes / Revenda</span>
+              </Link>
+              <Link href="/envios" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                <Truck size={20}/><span>Envios Online</span>
+              </Link>
 
-              <div className="mt-4 mb-2 px-3 text-xs font-bold text-blue-300 uppercase tracking-wider">Financeiro</div>
-              <Link href="/financeiro" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><DollarSign size={20}/><span>Contas & Fluxo</span></Link>
-              <Link href="/relatorios" className="flex items-center gap-3 p-3 text-blue-100 hover:bg-blue-800 rounded-lg transition"><div className="bg-blue-500 w-5 h-5 flex items-center justify-center rounded text-xs font-bold">R</div><span>Relatório DRE</span></Link>
+              {/* MÓDULO PRODUÇÃO */}
+              <div className="mt-6 mb-2 px-3 text-xs font-bold text-[#dedbcb] opacity-60 uppercase tracking-widest">
+                Produção
+              </div>
+
+              <Link href="/produtos" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                <Package size={20}/><span>Produtos Prontos</span>
+              </Link>
+              <Link href="/producao" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                <Layers size={20}/><span>Fichas Técnicas</span>
+              </Link>
+              <Link href="/insumos" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                <ShoppingBag size={20}/><span>Estoque Insumos</span>
+              </Link>
+
+              {/* MÓDULO FINANCEIRO */}
+              <div className="mt-6 mb-2 px-3 text-xs font-bold text-[#dedbcb] opacity-60 uppercase tracking-widest">
+                Financeiro
+              </div>
+
+              <Link href="/financeiro" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                 <DollarSign size={20}/><span>Contas & Fluxo</span>
+              </Link>
+              <Link href="/relatorios" className="flex items-center gap-3 p-3 text-white hover:bg-[#8f7355] rounded-lg transition-colors">
+                <div className="bg-[#9c8b73] text-[#5d4a2f] w-5 h-5 flex items-center justify-center rounded text-xs font-bold">R</div>
+                <span>Relatório DRE</span>
+              </Link>
+
             </nav>
           </div>
 
-          <div className="p-2 border-t border-blue-800 space-y-1">
-            {/* Link Configurações */}
-            <Link href="/configuracoes" className="flex items-center gap-3 p-3 w-full text-blue-100 hover:bg-blue-800 rounded-lg transition">
+          <div className="p-2 border-t border-[#8f7355]/30 space-y-1 bg-[#53422a]">
+            <Link href="/configuracoes" className="flex items-center gap-3 p-3 w-full text-[#dedbcb] hover:bg-[#8f7355] rounded-lg transition-colors">
               <Settings size={20} /><span>Configurações</span>
             </Link>
-            <button className="flex items-center gap-3 p-3 w-full text-blue-100 hover:bg-blue-800 rounded-lg transition">
+            <button className="flex items-center gap-3 p-3 w-full text-[#dedbcb] hover:bg-[#8f7355] rounded-lg transition-colors">
               <LogOut size={20} /><span>Sair</span>
             </button>
           </div>
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-8 bg-white text-gray-800">{children}</main>
+        {/* --- CONTEÚDO PRINCIPAL --- */}
+        <main className="flex-1 overflow-y-auto p-8 bg-[#f5f5f0] text-[#5d4a2f]">
+          {children}
+        </main>
+
       </body>
     </html>
   )
