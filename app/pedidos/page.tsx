@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-// ADICIONADO: 'Printer' na importação
 import { Plus, FileText, ShoppingBag, ArrowLeft, CheckCircle, Package, XCircle, DollarSign, Save, User, Trash2, Printer } from 'lucide-react'
 import Link from 'next/link'
 
@@ -18,7 +17,8 @@ export default function Pedidos() {
   const [pedidoId, setPedidoId] = useState<string | null>(null)
   const [clienteId, setClienteId] = useState('')
   const [carrinho, setCarrinho] = useState<any[]>([]) 
-  const [valores, setValores] = useState({ frete: 0, descontoGlobal: 0, observacoes: '' })
+  // ADICIONADO: 'validade' no estado
+  const [valores, setValores] = useState({ frete: 0, descontoGlobal: 0, observacoes: '', validade: 15 })
   const [statusAtual, setStatusAtual] = useState('ORCAMENTO')
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function Pedidos() {
     if(prod) setProdutos(prod)
   }
 
-  // --- NOVA FUNÇÃO: DELETAR PEDIDO ---
+  // --- FUNÇÃO: DELETAR PEDIDO ---
   async function deletarPedido(e: any, id: string) {
     e.stopPropagation() 
     if(confirm('Tem certeza que deseja EXCLUIR este orçamento? Essa ação não pode ser desfeita.')) {
@@ -51,7 +51,8 @@ export default function Pedidos() {
       setValores({ 
           frete: pedido.valor_frete || 0, 
           descontoGlobal: pedido.desconto_global || 0,
-          observacoes: pedido.observacoes || ''
+          observacoes: pedido.observacoes || '',
+          validade: pedido.validade_dias || 15 // Carrega validade ou padrão 15
       })
       setStatusAtual(pedido.status)
 
@@ -70,7 +71,7 @@ export default function Pedidos() {
       setPedidoId(null)
       setClienteId('')
       setCarrinho([])
-      setValores({ frete: 0, descontoGlobal: 0, observacoes: '' })
+      setValores({ frete: 0, descontoGlobal: 0, observacoes: '', validade: 15 })
       setStatusAtual('ORCAMENTO')
     }
     setView('FORM')
@@ -114,7 +115,8 @@ export default function Pedidos() {
         desconto_global: valores.descontoGlobal,
         valor_final: totalFinal,
         observacoes: valores.observacoes,
-        status: statusAtual
+        status: statusAtual,
+        validade_dias: valores.validade // Salva a validade
     }
 
     let idSalvo = pedidoId
@@ -278,6 +280,14 @@ export default function Pedidos() {
                         <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>R$ {subtotalItens.toFixed(2)}</span></div>
                         <div className="flex justify-between items-center"><span className="text-gray-500">Desconto Global (%)</span><input type="number" className="w-16 border p-1 rounded text-right" value={valores.descontoGlobal} onChange={e => setValores({...valores, descontoGlobal: Number(e.target.value)})}/></div>
                         <div className="flex justify-between items-center"><span className="text-gray-500">Frete (R$)</span><input type="number" className="w-20 border p-1 rounded text-right" value={valores.frete} onChange={e => setValores({...valores, frete: Number(e.target.value)})}/></div>
+                        
+                        {/* NOVO CAMPO: VALIDADE */}
+                        <div className="flex justify-between items-center bg-blue-50 p-2 rounded">
+                            <span className="text-blue-700 font-bold">Validade (dias)</span>
+                            <input type="number" className="w-16 border p-1 rounded text-right bg-white" 
+                                value={valores.validade} onChange={e => setValores({...valores, validade: Number(e.target.value)})}/>
+                        </div>
+
                         <div className="border-t pt-3 flex justify-between text-xl font-bold text-gray-800"><span>Total Final</span><span>R$ {totalFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
                     </div>
                     <div className="mb-4"><label className="text-xs font-bold text-gray-500">Observações</label><textarea className="w-full border p-2 rounded h-20 text-sm" value={valores.observacoes} onChange={e => setValores({...valores, observacoes: e.target.value})}/></div>
