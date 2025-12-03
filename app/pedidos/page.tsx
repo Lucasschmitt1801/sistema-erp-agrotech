@@ -2,15 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, FileText, ShoppingBag, ArrowLeft, CheckCircle, Package, XCircle, DollarSign, Save, User, Trash2 } from 'lucide-react'
+// ADICIONADO: 'Printer' na importação
+import { Plus, FileText, ShoppingBag, ArrowLeft, CheckCircle, Package, XCircle, DollarSign, Save, User, Trash2, Printer } from 'lucide-react'
+import Link from 'next/link'
 
 export default function Pedidos() {
   const [view, setView] = useState('LISTA') 
   const [pedidos, setPedidos] = useState<any[]>([])
   
+  // Dados Auxiliares
   const [clientes, setClientes] = useState<any[]>([])
   const [produtos, setProdutos] = useState<any[]>([])
 
+  // Estado do Pedido Atual (Edição/Novo)
   const [pedidoId, setPedidoId] = useState<string | null>(null)
   const [clienteId, setClienteId] = useState('')
   const [carrinho, setCarrinho] = useState<any[]>([]) 
@@ -33,7 +37,7 @@ export default function Pedidos() {
 
   // --- NOVA FUNÇÃO: DELETAR PEDIDO ---
   async function deletarPedido(e: any, id: string) {
-    e.stopPropagation() // Impede que clique no card e abra o editor ao mesmo tempo
+    e.stopPropagation() 
     if(confirm('Tem certeza que deseja EXCLUIR este orçamento? Essa ação não pode ser desfeita.')) {
         await supabase.from('pedidos').delete().match({ id })
         carregarDadosIniciais()
@@ -194,11 +198,23 @@ export default function Pedidos() {
                             </div>
                             <p className="text-xs text-gray-500">{new Date(p.created_at).toLocaleDateString()} • ID: {p.id.slice(0,8)}</p>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="text-right">
+                        <div className="flex items-center gap-2">
+                            <div className="text-right mr-4">
                                 <span className="block font-bold text-gray-800 text-lg">R$ {p.valor_final?.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                             </div>
-                            {/* BOTÃO EXCLUIR NA LISTA */}
+                            
+                            {/* BOTÃO IMPRIMIR PDF */}
+                            <Link 
+                                href={`/pedidos/imprimir/${p.id}`} 
+                                target="_blank"
+                                onClick={(e) => e.stopPropagation()} 
+                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"
+                                title="Imprimir PDF"
+                            >
+                                <Printer size={20} />
+                            </Link>
+
+                            {/* BOTÃO EXCLUIR */}
                             <button onClick={(e) => deletarPedido(e, p.id)} className="p-2 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-full transition">
                                 <Trash2 size={20} />
                             </button>
