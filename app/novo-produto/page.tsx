@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save, Info, Tag } from 'lucide-react'
@@ -10,12 +10,28 @@ export default function NovoProduto() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   
+  // Estado para as categorias do banco
+  const [categorias, setCategorias] = useState<any[]>([])
+
   const [formData, setFormData] = useState({
     nome: '',
     sku: '',
     preco_venda: '',
-    categoria: 'Bolsas' // Valor padrão
+    categoria: '' // Começa vazio, vamos setar o primeiro depois
   })
+
+  // Buscar categorias ao carregar a página
+  useEffect(() => {
+    async function getCats() {
+        const { data } = await supabase.from('categorias').select('*').order('nome')
+        if (data && data.length > 0) {
+            setCategorias(data)
+            // Define o padrão como a primeira da lista
+            setFormData(prev => ({ ...prev, categoria: data[0].nome }))
+        }
+    }
+    getCats()
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
@@ -33,7 +49,7 @@ export default function NovoProduto() {
           sku: formData.sku.toUpperCase(),
           preco_custo: 0, 
           preco_venda: parseFloat(formData.preco_venda.replace(',', '.')),
-          categoria: formData.categoria // Salva a categoria
+          categoria: formData.categoria
         }
       ])
 
@@ -70,17 +86,23 @@ export default function NovoProduto() {
                     className="w-full p-3 border rounded-lg uppercase focus:border-[#8f7355] outline-none text-[#5d4a2f]" onChange={handleChange} />
             </div>
             
-            {/* SELETOR DE CATEGORIA NOVO */}
+            {/* SELETOR DE CATEGORIA DINÂMICO */}
             <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1 flex items-center gap-1"><Tag size={12}/> Categoria</label>
-                <select name="categoria" className="w-full p-3 border rounded-lg bg-white focus:border-[#8f7355] outline-none text-[#5d4a2f]" onChange={handleChange}>
-                    <option value="Bolsas">Bolsas</option>
-                    <option value="Cintos">Cintos</option>
-                    <option value="Carteiras">Carteiras</option>
-                    <option value="Selaria">Selaria</option>
-                    <option value="Acessórios">Acessórios</option>
-                    <option value="Outros">Outros</option>
+                <select 
+                    name="categoria" 
+                    className="w-full p-3 border rounded-lg bg-white focus:border-[#8f7355] outline-none text-[#5d4a2f]" 
+                    onChange={handleChange}
+                    value={formData.categoria}
+                >
+                    {categorias.length === 0 && <option>Carregando...</option>}
+                    {categorias.map(cat => (
+                        <option key={cat.id} value={cat.nome}>{cat.nome}</option>
+                    ))}
                 </select>
+                <div className="text-[10px] text-gray-400 mt-1 text-right">
+                    <Link href="/configuracoes" className="hover:underline">Gerenciar categorias</Link>
+                </div>
             </div>
         </div>
 
