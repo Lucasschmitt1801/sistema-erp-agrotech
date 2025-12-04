@@ -1,37 +1,48 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+// Ajuste o caminho do import conforme necessário
 import { supabase } from '@/lib/supabase'
-import { UserPlus, Users, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
+import { UserPlus, Users, Shield, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function AdminDashboard() {
+  const router = useRouter()
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [novoUser, setNovoUser] = useState({ email: '', password: '', role: 'user' })
   const [criando, setCriando] = useState(false)
 
   useEffect(() => {
-    checarPermissaoEBuscar()
+    verificarAcesso()
   }, [])
 
-  async function checarPermissaoEBuscar() {
-    // Verifica se quem está logado é admin
+  async function verificarAcesso() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     
-    if (profile?.role !== 'admin') {
-        alert('Acesso Negado: Apenas administradores.')
-        window.location.href = '/' // Chuta pra home
+    if (!user) {
+        router.push('/login')
         return
     }
 
+    // Busca o perfil para ver se é admin
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+    
+    if (profile?.role !== 'admin') {
+        alert('Acesso Negado: Área restrita para administradores.')
+        router.push('/') // Chuta para a home
+        return
+    }
+
+    // Se chegou aqui, é admin
     fetchUsuarios()
   }
 
   async function fetchUsuarios() {
-    // Busca perfis
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
     if (data) setUsuarios(data)
     setLoading(false)
@@ -42,7 +53,6 @@ export default function AdminDashboard() {
     setCriando(true)
 
     try {
-        // Chama nossa API secreta
         const response = await fetch('/api/admin/create-user', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -50,7 +60,6 @@ export default function AdminDashboard() {
         })
 
         const result = await response.json()
-
         if (!response.ok) throw new Error(result.error)
 
         alert('Usuário criado com sucesso!')
@@ -64,7 +73,7 @@ export default function AdminDashboard() {
     }
   }
 
-  if (loading) return <div className="p-10 text-center">Verificando credenciais...</div>
+  if (loading) return <div className="h-screen flex items-center justify-center text-[#5d4a2f]"><Loader2 className="animate-spin mr-2"/> Verificando permissões...</div>
 
   return (
     <div className="max-w-6xl mx-auto text-[#5d4a2f]">
@@ -74,17 +83,17 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Formulário de Criação */}
+        {/* Formulário */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-[#dedbcb] lg:col-span-1 h-fit">
             <h2 className="font-bold text-lg mb-6 flex items-center gap-2 text-[#5d4a2f]">
-                <UserPlus size={20}/> Novo Usuário
+                <UserPlus size={20}/> Cadastrar Novo Acesso
             </h2>
             <form onSubmit={criarUsuario} className="space-y-4">
                 <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">E-mail de Acesso</label>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">E-mail</label>
                     <input 
                         type="email" required
-                        className="w-full border p-2 rounded focus:border-[#8f7355] outline-none"
+                        className="w-full border p-2 rounded focus:border-[#8f7355] outline-none text-gray-900"
                         value={novoUser.email}
                         onChange={e => setNovoUser({...novoUser, email: e.target.value})}
                     />
@@ -93,20 +102,20 @@ export default function AdminDashboard() {
                     <label className="block text-xs font-bold text-gray-500 mb-1">Senha Provisória</label>
                     <input 
                         type="text" required minLength={6}
-                        className="w-full border p-2 rounded focus:border-[#8f7355] outline-none"
+                        className="w-full border p-2 rounded focus:border-[#8f7355] outline-none text-gray-900"
                         value={novoUser.password}
                         onChange={e => setNovoUser({...novoUser, password: e.target.value})}
                     />
                 </div>
                 <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Nível de Acesso</label>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Função</label>
                     <select 
-                        className="w-full border p-2 rounded bg-white"
+                        className="w-full border p-2 rounded bg-white text-gray-900"
                         value={novoUser.role}
                         onChange={e => setNovoUser({...novoUser, role: e.target.value})}
                     >
-                        <option value="user">Usuário Comum (Cliente)</option>
-                        <option value="admin">Administrador</option>
+                        <option value="user">Usuário (Cliente/Funcionário)</option>
+                        <option value="admin">Administrador (Total)</option>
                     </select>
                 </div>
                 
@@ -116,16 +125,16 @@ export default function AdminDashboard() {
             </form>
         </div>
 
-        {/* Lista de Usuários */}
+        {/* Lista */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-[#dedbcb]">
             <h2 className="font-bold text-lg mb-6 flex items-center gap-2 text-[#5d4a2f]">
-                <Users size={20}/> Usuários Ativos ({usuarios.length})
+                <Users size={20}/> Usuários do Sistema
             </h2>
             <div className="space-y-3">
                 {usuarios.map(u => (
                     <div key={u.id} className="flex justify-between items-center p-4 bg-[#f9f8f6] rounded-lg border border-[#dedbcb]">
                         <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-full ${u.role === 'admin' ? 'bg-[#5d4a2f] text-white' : 'bg-white text-[#8f7355] border'}`}>
+                            <div className={`p-2 rounded-full ${u.role === 'admin' ? 'bg-[#5d4a2f] text-white' : 'bg-white text-[#8f7355] border border-[#dedbcb]'}`}>
                                 {u.role === 'admin' ? <Shield size={16}/> : <Users size={16}/>}
                             </div>
                             <div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+// Ajuste o caminho do import conforme necessário (ex: ../../lib/supabase)
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -25,13 +26,13 @@ export default function Login() {
       alert('Erro ao entrar: ' + error.message)
       setLoading(false)
     } else {
-      router.push('/') // Manda para o Dashboard
+      router.push('/') // Vai para o Dashboard
       router.refresh()
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f0] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#f9f8f6] p-4">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-[#dedbcb]">
         
         <div className="flex flex-col items-center mb-8">
@@ -51,7 +52,7 @@ export default function Login() {
                         type="email" 
                         required
                         className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:border-[#8f7355] focus:ring-2 focus:ring-[#8f7355]/20 outline-none transition-all text-gray-800"
-                        placeholder="seu@email.com"
+                        placeholder="admin@haras.com"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                     />
