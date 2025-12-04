@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
@@ -10,15 +11,32 @@ import {
 
 export default function Sidebar() {
   const router = useRouter()
+  const [isAdmin, setIsAdmin] = useState(false) // Estado para controlar visibilidade
+
+  // VERIFICAÇÃO DE ADMIN AO CARREGAR
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      // Lógica: Se o email for admin@empresa.com OU conter a palavra "admin"
+      if (session?.user?.email === 'admin@empresa.com' || session?.user?.email?.includes('admin')) {
+        setIsAdmin(true)
+      } else {
+        setIsAdmin(false)
+      }
+    }
+    
+    checkUser()
+  }, [])
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    router.push('/login') // Redireciona para o login
-    router.refresh() // Limpa o cache da sessão
+    router.replace('/login') // Use replace para não deixar voltar pelo botão "voltar"
+    router.refresh()
   }
 
   return (
-    <aside className="w-64 bg-[#5d4a2f] text-[#dedbcb] flex flex-col justify-between shadow-2xl z-10 overflow-y-auto font-medium transition-all">
+    <aside className="w-64 bg-[#5d4a2f] text-[#dedbcb] flex flex-col justify-between shadow-2xl z-10 overflow-y-auto font-medium transition-all h-full">
       <div>
         {/* LOGO */}
         <div className="p-6 border-b border-[#8f7355]/30 flex justify-center bg-[#5d4a2f]">
@@ -78,14 +96,18 @@ export default function Sidebar() {
       </div>
 
       <div className="p-2 border-t border-[#8f7355]/30 space-y-1 bg-[#4e3d26]">
-        <Link href="/admin" className="flex items-center gap-3 p-3 w-full text-[#dedbcb] hover:bg-[#8f7355] rounded-lg transition-colors">
-            <Shield size={20} /><span>Painel Admin</span>
-        </Link>
+        
+        {/* RENDERIZAÇÃO CONDICIONAL DO ADMIN */}
+        {isAdmin && (
+            <Link href="/admin" className="flex items-center gap-3 p-3 w-full text-[#dedbcb] hover:bg-[#8f7355] rounded-lg transition-colors">
+                <Shield size={20} /><span>Painel Admin</span>
+            </Link>
+        )}
+
         <Link href="/configuracoes" className="flex items-center gap-3 p-3 w-full text-[#dedbcb] hover:bg-[#8f7355] rounded-lg transition-colors">
             <Settings size={20} /><span>Configurações</span>
         </Link>
         
-        {/* BOTÃO SAIR COM LÓGICA AGORA */}
         <button 
             onClick={handleLogout}
             className="flex items-center gap-3 p-3 w-full text-[#dedbcb] hover:bg-red-900/50 hover:text-red-200 rounded-lg transition-colors text-left"
