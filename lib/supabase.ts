@@ -1,11 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// CHAVES HARDCODED (Para eliminar erro de leitura de ambiente)
+const supabaseUrl = 'https://vfyghsvpdihkcfyvgwqs.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmeWdoc3ZwZGloa2NmeXZnd3FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MjE0MzgsImV4cCI6MjA3OTk5NzQzOH0.Rn5D8NPO86XOmGTfjFmMjiBPWgk4szVZSB1Umo4Q528'
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Faltam as variáveis de ambiente do Supabase (URL ou ANON KEY). Verifique seu arquivo .env.local')
-}
-
-// Cria a conexão oficial
+// Cria a conexão
 export const supabase = createClient(supabaseUrl, supabaseKey)
