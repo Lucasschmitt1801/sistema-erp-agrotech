@@ -1,244 +1,316 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { Search, ShoppingCart, Trash2, CheckCircle, Calculator } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../../lib/supabase'
+import { 
+  Search, ShoppingCart, Trash2, Plus, Minus, Calculator, DollarSign, Percent, Save, Loader2 
+} from 'lucide-react'
 
 export default function PDV() {
-  const router = useRouter()
-  const [produtos, setProdutos] = useState<any[]>([])
-  const [carrinho, setCarrinho] = useState<any[]>([])
-  const [busca, setBusca] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [processando, setProcessando] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [products, setProducts] = useState<any[]>([])
+  const [cart, setCart] = useState<any[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
   
-  // Estados de Pagamento
-  const [pagamento, setPagamento] = useState('DINHEIRO')
-  const [valorRecebido, setValorRecebido] = useState('')
-  const [troco, setTroco] = useState(0)
+  // --- NOVOS ESTADOS PARA DESCONTO ---
+  const [discountValue, setDiscountValue] = useState<string>('') // String para facilitar digitação
+  const [discountPercent, setDiscountPercent] = useState<string>('')
+  
+  // Estado para cliente e pagamento
+  const [paymentMethod, setPaymentMethod] = useState('PIX')
+  const [clientName, setClientName] = useState('')
 
+  // 1. Carregar Produtos do Estoque
   useEffect(() => {
-    fetchProdutos()
+    fetchProducts()
   }, [])
 
-  async function fetchProdutos() {
-    const { data } = await supabase.from('produtos').select('*').order('nome')
-    if (data) setProdutos(data)
-    setLoading(false)
-  }
-
-  function adicionarAoCarrinho(produto: any) {
-    const itemExistente = carrinho.find(item => item.id === produto.id)
-    if (itemExistente) {
-      setCarrinho(carrinho.map(item => 
-        item.id === produto.id ? { ...item, qtd: item.qtd + 1 } : item
-      ))
-    } else {
-      setCarrinho([...carrinho, { ...produto, qtd: 1 }])
+  const fetchProducts = async () => {
+    // Busca produtos com saldo de estoque (ajuste conforme sua tabela real)
+    const { data } = await supabase
+      .from('produtos')
+      .select('id, nome, preco, estoque_saldo(quantidade)')
+      .limit(50)
+    
+    if (data) {
+      const formatted = data.map((p: any) => ({
+        id: p.id,
+        name: p.nome,
+        price: p.preco,
+        stock: p.estoque_saldo?.[0]?.quantidade || 0
+      }))
+      setProducts(formatted)
     }
   }
 
-  function removerDoCarrinho(id: string) {
-    setCarrinho(carrinho.filter(item => item.id !== id))
+  // 2. Cálculos Matemáticos
+  const subtotal = useMemo(() => {
+    return cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+  }, [cart])
+
+  const totalFinal = useMemo(() => {
+    const desc = parseFloat(discountValue) || 0
+    return Math.max(0, subtotal - desc)
+  }, [subtotal, discountValue])
+
+  // 3. Handlers de Desconto Inteligente
+  const handleDiscountValueChange = (val: string) => {
+    setDiscountValue(val)
+    const valNum = parseFloat(val)
+    
+    if (!val || isNaN(valNum) || subtotal === 0) {
+      setDiscountPercent('')
+      return
+    }
+
+    // Calcula a porcentagem correspondente: (Valor / Subtotal) * 100
+    const percent = (valNum / subtotal) * 100
+    setDiscountPercent(percent.toFixed(2))
   }
 
-  const total = carrinho.reduce((acc, item) => acc + (item.preco_venda * item.qtd), 0)
+  const handleDiscountPercentChange = (val: string) => {
+    setDiscountPercent(val)
+    const valNum = parseFloat(val)
 
-  // Atualiza o troco sempre que digitar o valor recebido
-  useEffect(() => {
-    if (pagamento === 'DINHEIRO' && valorRecebido) {
-      const recebidoFloat = parseFloat(valorRecebido.replace(',', '.'))
-      setTroco(recebidoFloat - total)
-    } else {
-      setTroco(0)
+    if (!val || isNaN(valNum) || subtotal === 0) {
+      setDiscountValue('')
+      return
     }
-  }, [valorRecebido, total, pagamento])
 
-  async function finalizarVenda() {
-    if (carrinho.length === 0) return
-    setProcessando(true)
+    // Calcula o valor correspondente: (Porcentagem / 100) * Subtotal
+    const value = (valNum / 100) * subtotal
+    setDiscountValue(value.toFixed(2))
+  }
+
+  // 4. Handlers do Carrinho
+  const addToCart = (product: any) => {
+    const existing = cart.find(item => item.id === product.id)
+    if (existing) {
+      setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item))
+    } else {
+      setCart([...cart, { ...product, quantity: 1 }])
+    }
+    // Reseta descontos ao mudar o carrinho para evitar incoerências
+    setDiscountValue('')
+    setDiscountPercent('')
+  }
+
+  const removeFromCart = (id: number) => {
+    setCart(cart.filter(item => item.id !== id))
+    setDiscountValue('')
+    setDiscountPercent('')
+  }
+
+  const updateQuantity = (id: number, delta: number) => {
+    setCart(cart.map(item => {
+      if (item.id === id) {
+        const newQtd = Math.max(1, item.quantity + delta)
+        return { ...item, quantity: newQtd }
+      }
+      return item
+    }))
+    setDiscountValue('')
+    setDiscountPercent('')
+  }
+
+  // 5. Finalizar Venda
+  const handleFinishSale = async () => {
+    if (cart.length === 0) return alert('Carrinho vazio!')
+    if (!clientName.trim()) return alert('Informe o nome do cliente (ou "Consumidor")')
+
+    setLoading(true)
 
     try {
-      // 1. Criar Venda no Banco
-      const { data: venda, error: erroVenda } = await supabase
-        .from('vendas')
-        .insert([{ valor_total: total, forma_pagamento: pagamento }])
-        .select().single()
-
-      if (erroVenda) throw erroVenda
-
-      // 2. Criar os Itens da Venda
-      const itensParaSalvar = carrinho.map(item => ({
-        venda_id: venda.id,
-        produto_id: item.id,
-        quantidade: item.qtd,
-        preco_unitario: item.preco_venda
-      }))
-
-      const { error: erroItens } = await supabase.from('venda_itens').insert(itensParaSalvar)
-      if (erroItens) throw erroItens
-
-      // 3. Baixar Estoque (Passo Crítico)
-      for (const item of carrinho) {
-        // Busca o saldo atual e o ID do registro de saldo
-        const { data: saldos } = await supabase
-            .from('estoque_saldo')
-            .select('quantidade, id')
-            .eq('produto_id', item.id)
-            .limit(1)
-
-        if (saldos && saldos.length > 0) {
-            const saldoAtual = saldos[0].quantidade
-            // Atualiza subtraindo a quantidade vendida
-            await supabase
-                .from('estoque_saldo')
-                .update({ quantidade: saldoAtual - item.qtd })
-                .eq('id', saldos[0].id)
-        }
+      const saleData = {
+        cliente_nome: clientName,
+        forma_pagamento: paymentMethod,
+        valor_subtotal: subtotal,
+        valor_desconto: parseFloat(discountValue) || 0, // Salva o desconto
+        valor_total: totalFinal,
+        itens: cart, // Em produção, salvaria em tabela separada 'venda_itens'
+        created_at: new Date().toISOString()
       }
 
-      // 4. Sucesso
-      alert(`Venda Finalizada! ${troco > 0 ? `Entregar troco de R$ ${troco.toFixed(2)}` : ''}`)
+      const { error } = await supabase.from('vendas').insert(saleData)
+
+      if (error) throw error
+
+      alert('Venda realizada com sucesso! ✅')
       
-      // Limpa tudo
-      setCarrinho([])
-      setValorRecebido('')
-      
-      // Volta para a Home para ver os gráficos atualizados
-      router.push('/') 
-      
+      // Limpar tudo
+      setCart([])
+      setClientName('')
+      setDiscountValue('')
+      setDiscountPercent('')
+      setPaymentMethod('PIX')
+
     } catch (error: any) {
-      alert('Erro: ' + error.message)
+      alert('Erro ao salvar venda: ' + error.message)
     } finally {
-      setProcessando(false)
+      setLoading(false)
     }
   }
 
-  const produtosFiltrados = produtos.filter(p => 
-    p.nome.toLowerCase().includes(busca.toLowerCase()) || 
-    p.sku?.toLowerCase().includes(busca.toLowerCase())
+  // Filtro de produtos
+  const filteredProducts = products.filter(p => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-6 text-gray-800">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-100px)] gap-6">
       
-      {/* LADO ESQUERDO: Catálogo de Produtos */}
-      <div className="flex-1 flex flex-col bg-white rounded-xl shadow border border-gray-200">
-        <div className="p-4 border-b border-gray-200 bg-gray-50">
+      {/* ESQUERDA: LISTA DE PRODUTOS */}
+      <div className="flex-1 bg-white rounded-xl shadow-sm border border-[#dedbcb] flex flex-col overflow-hidden">
+        {/* Barra de Busca */}
+        <div className="p-4 border-b border-gray-100 bg-[#f9f8f6]">
           <div className="relative">
-            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input 
-              className="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-blue-500 text-gray-900 bg-white"
-              placeholder="Buscar produto por nome ou SKU..."
-              value={busca}
-              onChange={e => setBusca(e.target.value)}
+              type="text" 
+              placeholder="Buscar produto..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:border-[#8f7355] transition-colors"
             />
           </div>
         </div>
-        
-        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 lg:grid-cols-3 gap-4 content-start">
-          {produtosFiltrados.map(prod => (
+
+        {/* Grid de Produtos */}
+        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 content-start">
+          {filteredProducts.map(product => (
             <button 
-              key={prod.id}
-              onClick={() => adicionarAoCarrinho(prod)}
-              className="flex flex-col items-start p-4 border rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-left bg-white shadow-sm"
+              key={product.id}
+              onClick={() => addToCart(product)}
+              className="flex flex-col items-start p-4 rounded-lg border border-gray-100 hover:border-[#8f7355] hover:shadow-md transition-all bg-white group text-left"
             >
-              <div className="font-bold text-gray-800 text-sm line-clamp-2">{prod.nome}</div>
-              <div className="text-xs text-gray-500 mb-2">{prod.sku}</div>
-              <div className="font-bold text-green-600">R$ {prod.preco_venda}</div>
+              <div className="w-full h-24 bg-gray-50 rounded-md mb-3 flex items-center justify-center text-gray-300">
+                <ShoppingCart size={32} />
+              </div>
+              <h4 className="font-bold text-gray-800 line-clamp-2 text-sm h-10">{product.name}</h4>
+              <div className="flex justify-between w-full mt-2 items-center">
+                <span className="font-bold text-[#5d4a2f]">R$ {product.price.toFixed(2)}</span>
+                <span className="text-[10px] bg-gray-100 px-2 py-1 rounded text-gray-500">Est: {product.stock}</span>
+              </div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* LADO DIREITO: Carrinho e Pagamento */}
-      <div className="w-full md:w-96 bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col">
-        
-        {/* Link para o Histórico */}
-        <div className="flex justify-end p-2 bg-gray-50 rounded-t-xl">
-            <Link href="/vendas/historico" className="text-xs text-blue-600 hover:underline font-bold flex items-center gap-1">
-             Ver Histórico de Vendas
-            </Link>
-        </div>
-        
-        <div className="p-4 bg-gray-50 border-b border-gray-200 font-bold text-gray-700 flex items-center gap-2">
-          <ShoppingCart size={20} /> Carrinho
+      {/* DIREITA: CARRINHO E PAGAMENTO */}
+      <div className="w-full lg:w-96 bg-white rounded-xl shadow-lg border border-[#dedbcb] flex flex-col h-full">
+        <div className="p-4 bg-[#5d4a2f] text-white rounded-t-xl flex justify-between items-center">
+          <h2 className="font-bold flex items-center gap-2"><ShoppingCart size={20}/> Carrinho</h2>
+          <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{cart.length} itens</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {carrinho.length === 0 ? (
-            <div className="text-center text-gray-400 mt-10">Carrinho vazio.</div>
-          ) : (
-            carrinho.map(item => (
-              <div key={item.id} className="flex justify-between items-center border-b pb-2">
-                <div>
-                  <div className="font-medium text-sm text-gray-800">{item.nome}</div>
-                  <div className="text-xs text-blue-600 font-bold">{item.qtd}x R$ {item.preco_venda}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                   <span className="font-bold text-gray-800 text-sm">R$ {item.qtd * item.preco_venda}</span>
-                   <button onClick={() => removerDoCarrinho(item.id)} className="text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* ÁREA DE PAGAMENTO */}
-        <div className="p-6 bg-gray-50 border-t border-gray-200">
-          <div className="flex justify-between items-center mb-4 text-xl font-bold text-gray-800">
-            <span>Total</span>
-            <span>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-          </div>
-
-          <div className="mb-4 space-y-3">
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Forma de Pagamento</label>
-                <select 
-                  className="w-full p-2 border rounded-md text-gray-900 bg-white"
-                  value={pagamento}
-                  onChange={e => setPagamento(e.target.value)}
-                >
-                  <option value="DINHEIRO">Dinheiro</option>
-                  <option value="PIX">PIX</option>
-                  <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                  <option value="CARTAO_DEBITO">Cartão Débito</option>
-                </select>
+        {/* Lista de Itens */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {cart.length === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center opacity-50">
+              <ShoppingCart size={48} className="mb-2"/>
+              <p>O carrinho está vazio</p>
             </div>
-
-            {/* Calculadora de Troco (Só aparece se for Dinheiro) */}
-            {pagamento === 'DINHEIRO' && (
-                <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
-                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Valor Recebido (R$)</label>
-                    <input 
-                        type="number"
-                        placeholder="0,00"
-                        className="w-full p-2 border rounded text-gray-900 bg-white"
-                        value={valorRecebido}
-                        onChange={e => setValorRecebido(e.target.value)}
-                    />
-                    {troco > 0 && (
-                        <div className="mt-2 flex items-center gap-2 text-green-700 font-bold">
-                            <Calculator size={16}/> Troco: R$ {troco.toFixed(2)}
-                        </div>
-                    )}
-                     {troco < 0 && valorRecebido && (
-                        <div className="mt-2 text-red-600 text-xs font-bold">Falta dinheiro!</div>
-                    )}
+          )}
+          {cart.map(item => (
+            <div key={item.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+              <div className="flex-1 min-w-0 pr-2">
+                <p className="font-medium text-gray-800 text-sm truncate">{item.name}</p>
+                <p className="text-xs text-gray-500">R$ {item.price.toFixed(2)} un</p>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-white rounded border border-gray-200 px-1">
+                  <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:bg-gray-100 rounded text-gray-600"><Minus size={12}/></button>
+                  <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
+                  <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:bg-gray-100 rounded text-gray-600"><Plus size={12}/></button>
                 </div>
-            )}
+                <div className="text-right min-w-[60px]">
+                  <p className="font-bold text-[#5d4a2f] text-sm">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                </div>
+                <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* --- ÁREA DE TOTAIS E DESCONTOS (NOVO) --- */}
+        <div className="p-4 bg-[#f9f8f6] border-t border-gray-200 space-y-4">
+          
+          {/* Inputs do Desconto */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
+                <DollarSign size={12}/> Desconto (R$)
+              </label>
+              <input 
+                type="number" 
+                placeholder="0,00"
+                value={discountValue}
+                onChange={(e) => handleDiscountValueChange(e.target.value)}
+                className="w-full bg-white border border-gray-300 rounded p-2 text-right font-medium focus:border-[#8f7355] outline-none text-red-600"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
+                <Percent size={12}/> Desconto (%)
+              </label>
+              <input 
+                type="number" 
+                placeholder="0%"
+                value={discountPercent}
+                onChange={(e) => handleDiscountPercentChange(e.target.value)}
+                className="w-full bg-white border border-gray-300 rounded p-2 text-right font-medium focus:border-[#8f7355] outline-none text-red-600"
+              />
+            </div>
           </div>
+
+          <div className="border-t border-gray-200 pt-3 space-y-1 text-sm">
+            <div className="flex justify-between text-gray-500">
+              <span>Subtotal</span>
+              <span>R$ {subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-red-500 font-medium">
+              <span>Desconto</span>
+              <span>- R$ {parseFloat(discountValue || '0').toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-xl font-bold text-[#5d4a2f] pt-2">
+              <span>Total</span>
+              <span>R$ {totalFinal.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Finalização */}
+        <div className="p-4 space-y-3 bg-white rounded-b-xl border-t border-gray-100">
+          <input 
+            type="text" 
+            placeholder="Nome do Cliente" 
+            value={clientName}
+            onChange={e => setClientName(e.target.value)}
+            className="w-full border border-gray-300 rounded p-2 text-sm focus:border-[#8f7355] outline-none"
+          />
+          
+          <select 
+            value={paymentMethod}
+            onChange={e => setPaymentMethod(e.target.value)}
+            className="w-full border border-gray-300 rounded p-2 text-sm bg-white focus:border-[#8f7355] outline-none"
+          >
+            <option value="PIX">PIX</option>
+            <option value="DINHEIRO">Dinheiro</option>
+            <option value="CREDITO">Cartão de Crédito</option>
+            <option value="DEBITO">Cartão de Débito</option>
+          </select>
 
           <button 
-            onClick={finalizarVenda}
-            disabled={carrinho.length === 0 || processando || (pagamento === 'DINHEIRO' && troco < 0)}
-            className="w-full bg-green-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-green-700 transition disabled:bg-gray-300 flex justify-center items-center gap-2"
+            onClick={handleFinishSale}
+            disabled={loading || cart.length === 0}
+            className="w-full bg-[#5d4a2f] text-[#dedbcb] font-bold py-3 rounded-lg hover:bg-[#4a3b25] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {processando ? 'Processando...' : <><CheckCircle /> Finalizar Venda</>}
+            {loading ? <Loader2 className="animate-spin" /> : <Save size={20}/>}
+            Finalizar Venda
           </button>
         </div>
+
       </div>
     </div>
   )
