@@ -34,14 +34,15 @@ export default function PDV() {
     }
   }, [activeTab])
 
-  // --- FUNÇÃO DE BUSCA BLINDADA (Corrige tela branca) ---
+  // --- FUNÇÃO DE BUSCA BLINDADA (Corrigido para preco_venda) ---
   const fetchProducts = async () => {
     setLoading(true)
     try {
       // TENTATIVA 1: Busca completa com estoque
+      // IMPORTANTE: Buscando 'preco_venda' conforme seu banco
       const { data, error } = await supabase
         .from('produtos')
-        .select('id, nome, preco, estoque_saldo(quantidade)')
+        .select('id, nome, preco_venda, estoque_saldo(quantidade)')
         .limit(50)
 
       if (error) throw error
@@ -50,7 +51,8 @@ export default function PDV() {
         const formatted = data.map((p: any) => ({
           id: p.id,
           name: p.nome,
-          price: p.preco,
+          price: p.preco_venda, // Mapeia a coluna certa
+          // Tenta ler estoque como array ou objeto
           stock: Array.isArray(p.estoque_saldo) 
             ? (p.estoque_saldo[0]?.quantidade || 0) 
             : (p.estoque_saldo?.quantidade || 0)
@@ -58,18 +60,19 @@ export default function PDV() {
         setProducts(formatted)
       }
     } catch (err) {
-      console.error('Erro ao buscar estoque, carregando modo simples...')
-      // TENTATIVA 2: Busca simples (sem estoque) para não travar
+      console.warn('Erro ao carregar estoque, ativando modo de segurança...')
+      
+      // TENTATIVA 2: Busca simples (sem estoque) para não travar a tela
       const { data: basicData } = await supabase
         .from('produtos')
-        .select('id, nome, preco')
+        .select('id, nome, preco_venda') // Também corrigido aqui
         .limit(50)
       
       if (basicData) {
         const formattedBasic = basicData.map((p: any) => ({
           id: p.id,
           name: p.nome,
-          price: p.preco,
+          price: p.preco_venda, 
           stock: 0 // Mostra 0 mas exibe o produto
         }))
         setProducts(formattedBasic)
@@ -255,7 +258,7 @@ export default function PDV() {
                   </div>
                   <h4 className="font-bold text-gray-800 line-clamp-2 text-sm h-10">{product.name}</h4>
                   <div className="flex justify-between w-full mt-2 items-center">
-                    <span className="font-bold text-[#5d4a2f]">R$ {product.price.toFixed(2)}</span>
+                    <span className="font-bold text-[#5d4a2f]">R$ {Number(product.price).toFixed(2)}</span>
                     <span className="text-[10px] bg-gray-100 px-2 py-1 rounded text-gray-500">Est: {product.stock}</span>
                   </div>
                 </button>
@@ -281,7 +284,7 @@ export default function PDV() {
                 <div key={item.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
                   <div className="flex-1 min-w-0 pr-2">
                     <p className="font-medium text-gray-800 text-sm truncate">{item.name}</p>
-                    <p className="text-xs text-gray-500">R$ {item.price.toFixed(2)} un</p>
+                    <p className="text-xs text-gray-500">R$ {Number(item.price).toFixed(2)} un</p>
                   </div>
                   
                   <div className="flex items-center gap-3">
@@ -398,8 +401,7 @@ export default function PDV() {
                 <tr>
                   <th className="p-4">Data / Hora</th>
                   <th className="p-4">Cliente</th>
-                  <th className="p-4">Forma Pagto</th>
-                  <th className="p-4">Itens</th>
+                  <th className="p-4">Pgto</th>
                   <th className="p-4">Total</th>
                   <th className="p-4 text-right">Ações</th>
                 </tr>
@@ -408,27 +410,24 @@ export default function PDV() {
                 {salesHistory.map(sale => (
                   <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
                     <td className="p-4 text-gray-600">
-                      {new Date(sale.created_at).toLocaleString()}
+                      {new Date(sale.created_at).toLocaleDateString()}
                     </td>
                     <td className="p-4 font-bold text-[#5d4a2f]">
                       {sale.cliente_nome}
                     </td>
                     <td className="p-4">
-                      <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-medium border border-gray-200">
+                      <span className="bg-gray-100 px-2 py-1 rounded text-xs">
                         {sale.forma_pagamento}
                       </span>
                     </td>
-                    <td className="p-4 text-gray-500 text-xs">
-                      {sale.itens ? sale.itens.length : 0} produto(s)
-                    </td>
                     <td className="p-4 font-bold text-green-600">
-                      R$ {sale.valor_total.toFixed(2)}
+                      R$ {Number(sale.valor_total).toFixed(2)}
                     </td>
                     <td className="p-4 text-right">
                       <button 
                         onClick={() => handleDeleteSale(sale.id)}
                         className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all"
-                        title="Excluir Venda (Estorno)"
+                        title="Excluir Venda"
                       >
                         <Trash2 size={18}/>
                       </button>
