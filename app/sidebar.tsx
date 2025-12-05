@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { supabase } from '@/lib/supabase'
+// Importa voltando uma pasta, pois 'lib' está fora de 'app'
+import { supabase } from '../lib/supabase' 
 import { useRouter } from 'next/navigation'
 import { 
   LayoutDashboard, Package, ShoppingCart, LogOut, DollarSign, Truck, FileText, User, Layers, ShoppingBag, Settings, Shield 
@@ -11,27 +12,25 @@ import {
 
 export default function Sidebar() {
   const router = useRouter()
-  const [isAdmin, setIsAdmin] = useState(false) // Estado para controlar visibilidade
+  const [isAdmin, setIsAdmin] = useState(false)
 
-  // VERIFICAÇÃO DE ADMIN AO CARREGAR
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       
-      // Lógica: Se o email for admin@empresa.com OU conter a palavra "admin"
+      // Verifica se é admin
       if (session?.user?.email === 'admin@empresa.com' || session?.user?.email?.includes('admin')) {
         setIsAdmin(true)
       } else {
         setIsAdmin(false)
       }
     }
-    
     checkUser()
   }, [])
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    router.replace('/login') // Use replace para não deixar voltar pelo botão "voltar"
+    router.replace('/login')
     router.refresh()
   }
 
@@ -97,7 +96,6 @@ export default function Sidebar() {
 
       <div className="p-2 border-t border-[#8f7355]/30 space-y-1 bg-[#4e3d26]">
         
-        {/* RENDERIZAÇÃO CONDICIONAL DO ADMIN */}
         {isAdmin && (
             <Link href="/admin" className="flex items-center gap-3 p-3 w-full text-[#dedbcb] hover:bg-[#8f7355] rounded-lg transition-colors">
                 <Shield size={20} /><span>Painel Admin</span>
