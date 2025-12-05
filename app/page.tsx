@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '../lib/supabase'
+import { useRouter } from 'next/navigation' // <--- ADICIONADO: Necessário para redirecionar
+import { supabase } from '../lib/supabase'  // <--- CAMINHO CORRETO (Sai de app, entra em lib)
 import { 
   TrendingUp, TrendingDown, DollarSign, Package, AlertTriangle, 
-  ArrowRight, ShoppingBag, Truck, Calendar 
+  ShoppingBag, Truck, Calendar 
 } from 'lucide-react'
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
 
 export default function Dashboard() {
+  const router = useRouter() // <--- INICIALIZA O ROUTER
   const [loading, setLoading] = useState(true)
   const [mesAno, setMesAno] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
 
@@ -29,12 +31,29 @@ export default function Dashboard() {
   const [estoqueBaixo, setEstoqueBaixo] = useState<any[]>([])
   const [ultimasVendas, setUltimasVendas] = useState<any[]>([])
 
+  // --- 1. PROTEÇÃO DE ROTA (Obrigatório Login) ---
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        router.push('/login') // Se não tem usuário, manda pro login
+      }
+    }
+    checkSession()
+  }, [router])
+
+  // --- 2. CARREGAMENTO DOS DADOS ---
   useEffect(() => {
     carregarDashboard()
   }, [mesAno])
 
   async function carregarDashboard() {
     setLoading(true)
+    
+    // Verifica sessão novamente antes de buscar dados para evitar erros de permissão
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return; 
+
     const [ano, mes] = mesAno.split('-')
     const inicio = new Date(parseInt(ano), parseInt(mes) - 1, 1).toISOString()
     const fim = new Date(parseInt(ano), parseInt(mes), 0, 23, 59, 59).toISOString()
@@ -74,7 +93,7 @@ export default function Dashboard() {
     
     // Filtrar no front pois o join do supabase é chato pra filtro
     const listaBaixa = produtosBaixos
-        ?.map(p => ({ nome: p.nome, qtd: p.estoque_saldo?.[0]?.quantidade || 0 }))
+        ?.map((p: any) => ({ nome: p.nome, qtd: p.estoque_saldo?.[0]?.quantidade || 0 }))
         .filter(p => p.qtd < 5) || []
 
     setEstoqueBaixo(listaBaixa)
