@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import './global.css' // Importa css da mesma pasta (singular, conforme diagrama)
-import Sidebar from './sidebar' // Importa sidebar da mesma pasta
+import './globals.css' // Importa css da mesma pasta (singular, conforme diagrama)
+import Sidebar from './Sidebar' // Importa sidebar da mesma pasta
 
 const inter = Inter({ subsets: ['latin'] })
 
