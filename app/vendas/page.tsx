@@ -34,15 +34,14 @@ export default function PDV() {
     }
   }, [activeTab])
 
-  // --- FUNÇÃO DE BUSCA BLINDADA (Corrigido para preco_venda) ---
+  // --- FUNÇÃO DE BUSCA BLINDADA (Busca tudo para evitar erro 400) ---
   const fetchProducts = async () => {
     setLoading(true)
     try {
-      // TENTATIVA 1: Busca completa com estoque
-      // IMPORTANTE: Buscando 'preco_venda' conforme seu banco
+      // Busca TODOS os campos (*) para não dar erro se errarmos o nome da coluna
       const { data, error } = await supabase
         .from('produtos')
-        .select('id, nome, preco_venda, estoque_saldo(quantidade)')
+        .select('*, estoque_saldo(quantidade)')
         .limit(50)
 
       if (error) throw error
@@ -51,8 +50,9 @@ export default function PDV() {
         const formatted = data.map((p: any) => ({
           id: p.id,
           name: p.nome,
-          price: p.preco_venda, // Mapeia a coluna certa
-          // Tenta ler estoque como array ou objeto
+          // Tenta encontrar o preço em várias colunas possíveis
+          price: Number(p.preco_venda || p.preco || 0), 
+          // Tenta ler estoque de forma segura
           stock: Array.isArray(p.estoque_saldo) 
             ? (p.estoque_saldo[0]?.quantidade || 0) 
             : (p.estoque_saldo?.quantidade || 0)
@@ -62,17 +62,17 @@ export default function PDV() {
     } catch (err) {
       console.warn('Erro ao carregar estoque, ativando modo de segurança...')
       
-      // TENTATIVA 2: Busca simples (sem estoque) para não travar a tela
+      // Fallback: Busca simples sem relação de estoque
       const { data: basicData } = await supabase
         .from('produtos')
-        .select('id, nome, preco_venda') // Também corrigido aqui
+        .select('*') // Busca tudo (*)
         .limit(50)
       
       if (basicData) {
         const formattedBasic = basicData.map((p: any) => ({
           id: p.id,
           name: p.nome,
-          price: p.preco_venda, 
+          price: Number(p.preco_venda || p.preco || 0),
           stock: 0 // Mostra 0 mas exibe o produto
         }))
         setProducts(formattedBasic)
@@ -96,9 +96,13 @@ export default function PDV() {
   }
 
   const handleDeleteSale = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir esta venda do histórico?')) return
+    if (!confirm('Tem certeza que deseja excluir esta venda?')) return
 
     try {
+      // Primeiro remove os itens (se houver restrição de chave estrangeira)
+      await supabase.from('venda_itens').delete().eq('venda_id', id)
+      
+      // Depois remove a venda
       const { error } = await supabase.from('vendas').delete().eq('id', id)
       if (error) throw error
       
@@ -172,33 +176,58 @@ export default function PDV() {
     setDiscountPercent('')
   }
 
+  // --- FINALIZAR VENDA (CORRIGIDO PARA SALVAR ITENS) ---
   const handleFinishSale = async () => {
     if (cart.length === 0) return alert('Carrinho vazio!')
     if (!clientName.trim()) return alert('Informe o nome do cliente')
 
     setLoading(true)
     try {
+      // 1. Salva a VENDA (Cabeçalho)
       const saleData = {
         cliente_nome: clientName,
         forma_pagamento: paymentMethod,
         valor_subtotal: subtotal,
         valor_desconto: parseFloat(discountValue) || 0,
         valor_total: totalFinal,
-        itens: cart, 
         created_at: new Date().toISOString()
       }
 
-      const { error } = await supabase.from('vendas').insert(saleData)
-      if (error) throw error
+      const { data: sale, error: saleError } = await supabase
+        .from('vendas')
+        .insert(saleData)
+        .select()
+        .single() // Retorna o objeto criado (com ID)
 
-      alert('Venda realizada! ✅')
+      if (saleError) throw saleError
+
+      // 2. Salva os ITENS (Tabela Relacionada)
+      if (sale && cart.length > 0) {
+        const itemsData = cart.map(item => ({
+          venda_id: sale.id, // Usa o ID da venda criada
+          produto_id: item.id,
+          quantidade: item.quantity,
+          preco_unitario: item.price // Salva o preço do momento da venda
+        }))
+
+        const { error: itemsError } = await supabase
+          .from('venda_itens')
+          .insert(itemsData)
+        
+        if (itemsError) {
+          console.error('Erro ao salvar itens:', itemsError)
+          alert('Venda salva, mas houve erro ao salvar os itens.')
+        }
+      }
+
+      alert('Venda realizada com sucesso! ✅')
       setCart([])
       setClientName('')
       setDiscountValue('')
       setDiscountPercent('')
       setPaymentMethod('PIX')
     } catch (error: any) {
-      alert('Erro: ' + error.message)
+      alert('Erro ao finalizar venda: ' + error.message)
     } finally {
       setLoading(false)
     }
