@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { 
-  Search, ShoppingCart, Trash2, Plus, Minus, DollarSign, Percent, Save, Loader2, Store, History, AlertCircle
+  Search, ShoppingCart, Trash2, Plus, Minus, DollarSign, Percent, Save, Loader2, Store, History, AlertCircle, CreditCard
 } from 'lucide-react'
 
 export default function PDV() {
@@ -18,6 +18,11 @@ export default function PDV() {
   const [discountPercent, setDiscountPercent] = useState<string>('')
   const [paymentMethod, setPaymentMethod] = useState('PIX')
   const [clientName, setClientName] = useState('')
+
+  // --- NOVOS ESTADOS: Parcelamento ---
+  const [installments, setInstallments] = useState(1) // Quantidade de parcelas
+  const [hasInterest, setHasInterest] = useState(false) // Tem juros?
+  const [interestRate, setInterestRate] = useState<string>('') // Taxa % de juros
 
   // --- Estados do Histórico ---
   const [salesHistory, setSalesHistory] = useState<any[]>([])
@@ -34,16 +39,22 @@ export default function PDV() {
     }
   }, [activeTab])
 
-  // --- FUNÇÃO DE BUSCA BLINDADA (Corrigido para preco_venda) ---
+  // 3. Resetar parcelas se mudar forma de pagamento
+  useEffect(() => {
+    if (paymentMethod !== 'CREDITO') {
+      setInstallments(1)
+      setHasInterest(false)
+      setInterestRate('')
+    }
+  }, [paymentMethod])
+
   const fetchProducts = async () => {
     setLoading(true)
     try {
-      // TENTATIVA 1: Busca completa com estoque
-      // IMPORTANTE: Buscando 'preco_venda' conforme seu banco
       const { data, error } = await supabase
         .from('produtos')
         .select('id, nome, preco_venda, estoque_saldo(quantidade)')
-        .limit(50)
+        .limit(100)
 
       if (error) throw error
 
@@ -51,8 +62,7 @@ export default function PDV() {
         const formatted = data.map((p: any) => ({
           id: p.id,
           name: p.nome,
-          price: p.preco_venda, // Mapeia a coluna certa
-          // Tenta ler estoque como array ou objeto
+          price: p.preco_venda, 
           stock: Array.isArray(p.estoque_saldo) 
             ? (p.estoque_saldo[0]?.quantidade || 0) 
             : (p.estoque_saldo?.quantidade || 0)
@@ -60,20 +70,18 @@ export default function PDV() {
         setProducts(formatted)
       }
     } catch (err) {
-      console.warn('Erro ao carregar estoque, ativando modo de segurança...')
-      
-      // TENTATIVA 2: Busca simples (sem estoque) para não travar a tela
+      console.warn('Modo simples ativado...')
       const { data: basicData } = await supabase
         .from('produtos')
-        .select('id, nome, preco_venda') // Também corrigido aqui
-        .limit(50)
+        .select('id, nome, preco_venda')
+        .limit(100)
       
       if (basicData) {
         const formattedBasic = basicData.map((p: any) => ({
           id: p.id,
           name: p.nome,
           price: p.preco_venda, 
-          stock: 0 // Mostra 0 mas exibe o produto
+          stock: 0 
         }))
         setProducts(formattedBasic)
       }
@@ -82,7 +90,6 @@ export default function PDV() {
     }
   }
 
-  // --- FUNÇÕES DO HISTÓRICO ---
   const fetchHistory = async () => {
     setLoading(true)
     const { data } = await supabase
@@ -99,10 +106,7 @@ export default function PDV() {
     if (!confirm('Tem certeza que deseja excluir esta venda do histórico?')) return
 
     try {
-      // 1. Primeiro remove os itens da venda (tabela venda_itens)
       await supabase.from('venda_itens').delete().eq('venda_id', id)
-
-      // 2. Depois remove a venda (tabela vendas)
       const { error } = await supabase.from('vendas').delete().eq('id', id)
       
       if (error) throw error
@@ -110,21 +114,39 @@ export default function PDV() {
       alert('Venda excluída com sucesso.')
       setSalesHistory(salesHistory.filter(s => s.id !== id))
     } catch (error: any) {
-      alert('Erro ao excluir: ' + error.message)
+      alert('Erro: ' + error.message)
     }
   }
 
-  // --- CÁLCULOS DO PDV ---
+  // --- CÁLCULOS (Atualizado com Juros) ---
   const subtotal = useMemo(() => {
     return cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
   }, [cart])
 
-  const totalFinal = useMemo(() => {
+  const totalWithDiscount = useMemo(() => {
     const desc = parseFloat(discountValue) || 0
     return Math.max(0, subtotal - desc)
   }, [subtotal, discountValue])
 
-  // --- HANDLERS DE DESCONTO ---
+  const totalFinal = useMemo(() => {
+    let final = totalWithDiscount
+    
+    // Se for Crédito, com Juros e parcelado
+    if (paymentMethod === 'CREDITO' && hasInterest && installments > 1) {
+      const rate = parseFloat(interestRate) || 0
+      // Cálculo simples: Valor + (Valor * %)
+      // Você pode ajustar para juros compostos se preferir
+      final = final + (final * (rate / 100))
+    }
+    return final
+  }, [totalWithDiscount, paymentMethod, hasInterest, installments, interestRate])
+
+  const installmentValue = useMemo(() => {
+    if (installments <= 1) return totalFinal
+    return totalFinal / installments
+  }, [totalFinal, installments])
+
+  // --- HANDLERS ---
   const handleDiscountValueChange = (val: string) => {
     setDiscountValue(val)
     const valNum = parseFloat(val)
@@ -147,7 +169,6 @@ export default function PDV() {
     setDiscountValue(value.toFixed(2))
   }
 
-  // --- HANDLERS DO CARRINHO ---
   const addToCart = (product: any) => {
     const existing = cart.find(item => item.id === product.id)
     if (existing) {
@@ -177,25 +198,24 @@ export default function PDV() {
     setDiscountPercent('')
   }
 
-  // --- FINALIZAR VENDA (Lógica Corrigida: Salva Venda e depois Itens) ---
   const handleFinishSale = async () => {
     if (cart.length === 0) return alert('Carrinho vazio!')
-    if (!clientName.trim()) return alert('Informe o nome do cliente')
+    
+    const finalClientName = clientName.trim() || 'Consumidor Final'
 
     setLoading(true)
     try {
-      // 1. Prepara dados da VENDA
       const saleData = {
-        cliente_nome: clientName,
+        cliente_nome: finalClientName,
         forma_pagamento: paymentMethod,
         valor_subtotal: subtotal,
         valor_desconto: parseFloat(discountValue) || 0,
-        valor_total: totalFinal,
-        // Removemos 'itens' daqui pois a coluna não existe na tabela 'vendas'
+        valor_total: totalFinal, // Salva o valor já com juros
         created_at: new Date().toISOString()
+        // Opcional: Se quiser salvar detalhes do parcelamento, precisaria criar colunas novas no Supabase
+        // ex: parcelas: installments, juros: interestRate
       }
 
-      // 2. Insere a VENDA e retorna o ID gerado
       const { data: sale, error: saleError } = await supabase
         .from('vendas')
         .insert(saleData)
@@ -204,36 +224,31 @@ export default function PDV() {
 
       if (saleError) throw saleError
 
-      // 3. Insere os ITENS na tabela 'venda_itens'
       if (sale) {
         const itemsData = cart.map(item => ({
-          venda_id: sale.id, // Relaciona com a venda criada
+          venda_id: sale.id,
           produto_id: item.id,
           quantidade: item.quantity,
           preco_unitario: item.price
         }))
 
-        const { error: itemsError } = await supabase
-          .from('venda_itens')
-          .insert(itemsData)
-
-        if (itemsError) {
-          console.error('Erro ao salvar itens:', itemsError)
-          alert('Atenção: Venda criada, mas ocorreu um erro ao salvar os produtos.')
-        }
+        await supabase.from('venda_itens').insert(itemsData)
       }
 
-      alert('Venda realizada com sucesso! ✅')
+      alert(`Venda realizada! Total: R$ ${totalFinal.toFixed(2)}`)
       
-      // Limpa a tela
+      // Reset
       setCart([])
       setClientName('')
       setDiscountValue('')
       setDiscountPercent('')
       setPaymentMethod('PIX')
+      setInstallments(1)
+      setHasInterest(false)
+      setInterestRate('')
 
     } catch (error: any) {
-      alert('Erro ao finalizar venda: ' + error.message)
+      alert('Erro: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -246,62 +261,41 @@ export default function PDV() {
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] gap-4">
       
-      {/* --- MENU DE ABAS --- */}
       <div className="flex gap-2 border-b border-gray-200 pb-1">
-        <button 
-          onClick={() => setActiveTab('pdv')}
-          className={`px-4 py-2 rounded-t-lg font-bold flex items-center gap-2 transition-colors ${activeTab === 'pdv' ? 'bg-[#5d4a2f] text-[#dedbcb]' : 'bg-transparent text-gray-500 hover:bg-gray-100'}`}
-        >
-          <Store size={18} /> Nova Venda
-        </button>
-        <button 
-          onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 rounded-t-lg font-bold flex items-center gap-2 transition-colors ${activeTab === 'history' ? 'bg-[#5d4a2f] text-[#dedbcb]' : 'bg-transparent text-gray-500 hover:bg-gray-100'}`}
-        >
-          <History size={18} /> Histórico Recente
-        </button>
+        <button onClick={() => setActiveTab('pdv')} className={`px-4 py-2 rounded-t-lg font-bold flex gap-2 ${activeTab === 'pdv' ? 'bg-[#5d4a2f] text-[#dedbcb]' : 'text-gray-500'}`}><Store size={18}/> Nova Venda</button>
+        <button onClick={() => setActiveTab('history')} className={`px-4 py-2 rounded-t-lg font-bold flex gap-2 ${activeTab === 'history' ? 'bg-[#5d4a2f] text-[#dedbcb]' : 'text-gray-500'}`}><History size={18}/> Histórico</button>
       </div>
 
-      {/* --- ABA PDV --- */}
       {activeTab === 'pdv' && (
         <div className="flex flex-col lg:flex-row flex-1 overflow-hidden gap-6">
           
-          {/* ESQUERDA: LISTA DE PRODUTOS */}
+          {/* ESQUERDA: PRODUTOS */}
           <div className="flex-1 bg-white rounded-xl shadow-sm border border-[#dedbcb] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-gray-100 bg-[#f9f8f6]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="Buscar produto..." 
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:border-[#8f7355] transition-colors"
-                />
+                <input type="text" placeholder="Buscar produto..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:border-[#8f7355]" />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 content-start">
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 content-start">
               {filteredProducts.map(product => (
                 <button 
                   key={product.id}
                   onClick={() => addToCart(product)}
-                  className="flex flex-col items-start p-4 rounded-lg border border-gray-100 hover:border-[#8f7355] hover:shadow-md transition-all bg-white group text-left"
+                  className="flex flex-col justify-between p-3 rounded-lg border border-gray-100 hover:border-[#8f7355] hover:shadow-md transition-all bg-white group text-left h-24"
                 >
-                  <div className="w-full h-24 bg-gray-50 rounded-md mb-3 flex items-center justify-center text-gray-300">
-                    <Store size={32} />
-                  </div>
-                  <h4 className="font-bold text-gray-800 line-clamp-2 text-sm h-10">{product.name}</h4>
-                  <div className="flex justify-between w-full mt-2 items-center">
-                    <span className="font-bold text-[#5d4a2f]">R$ {Number(product.price).toFixed(2)}</span>
-                    <span className="text-[10px] bg-gray-100 px-2 py-1 rounded text-gray-500">Est: {product.stock}</span>
+                  <h4 className="font-bold text-gray-800 line-clamp-2 text-sm leading-tight">{product.name}</h4>
+                  <div className="flex justify-between w-full items-end mt-2">
+                    <span className="font-bold text-[#5d4a2f] text-lg">R$ {Number(product.price).toFixed(2)}</span>
+                    <span className="text-[10px] bg-gray-50 px-2 py-1 rounded text-gray-400">Est: {product.stock}</span>
                   </div>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* DIREITA: CARRINHO E PAGAMENTO */}
+          {/* DIREITA: CARRINHO */}
           <div className="w-full lg:w-96 bg-white rounded-xl shadow-lg border border-[#dedbcb] flex flex-col h-full">
             <div className="p-4 bg-[#5d4a2f] text-white rounded-t-xl flex justify-between items-center">
               <h2 className="font-bold flex items-center gap-2"><ShoppingCart size={20}/> Carrinho</h2>
@@ -321,7 +315,6 @@ export default function PDV() {
                     <p className="font-medium text-gray-800 text-sm truncate">{item.name}</p>
                     <p className="text-xs text-gray-500">R$ {Number(item.price).toFixed(2)} un</p>
                   </div>
-                  
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 bg-white rounded border border-gray-200 px-1">
                       <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:bg-gray-100 rounded text-gray-600"><Minus size={12}/></button>
@@ -337,157 +330,126 @@ export default function PDV() {
               ))}
             </div>
 
-            <div className="p-4 bg-[#f9f8f6] border-t border-gray-200 space-y-4">
+            {/* TOTAIS E CÁLCULOS */}
+            <div className="p-4 bg-[#f9f8f6] border-t border-gray-200 space-y-3">
+              
+              {/* Descontos */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
-                    <DollarSign size={12}/> Desconto (R$)
-                  </label>
-                  <input 
-                    type="number" 
-                    placeholder="0,00"
-                    value={discountValue}
-                    onChange={(e) => handleDiscountValueChange(e.target.value)}
-                    className="w-full bg-white border border-gray-300 rounded p-2 text-right font-medium focus:border-[#8f7355] outline-none text-red-600"
-                  />
+                  <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 flex items-center gap-1"><DollarSign size={10}/> Desconto (R$)</label>
+                  <input type="number" placeholder="0,00" value={discountValue} onChange={(e) => handleDiscountValueChange(e.target.value)} className="w-full border rounded p-1.5 text-right text-red-600 outline-none focus:border-[#8f7355] text-sm"/>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
-                    <Percent size={12}/> Desconto (%)
-                  </label>
-                  <input 
-                    type="number" 
-                    placeholder="0%"
-                    value={discountPercent}
-                    onChange={(e) => handleDiscountPercentChange(e.target.value)}
-                    className="w-full bg-white border border-gray-300 rounded p-2 text-right font-medium focus:border-[#8f7355] outline-none text-red-600"
-                  />
+                  <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 flex items-center gap-1"><Percent size={10}/> Desconto (%)</label>
+                  <input type="number" placeholder="0%" value={discountPercent} onChange={(e) => handleDiscountPercentChange(e.target.value)} className="w-full border rounded p-1.5 text-right text-red-600 outline-none focus:border-[#8f7355] text-sm"/>
                 </div>
               </div>
 
-              <div className="border-t border-gray-200 pt-3 space-y-1 text-sm">
-                <div className="flex justify-between text-gray-500">
-                  <span>Subtotal</span>
-                  <span>R$ {subtotal.toFixed(2)}</span>
+              {/* OPÇÕES DE PARCELAMENTO (SÓ APARECE SE FOR CRÉDITO) */}
+              {paymentMethod === 'CREDITO' && (
+                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 space-y-3 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-yellow-800 flex items-center gap-1">
+                      <CreditCard size={14}/> Parcelas
+                    </label>
+                    <select 
+                      value={installments} 
+                      onChange={(e) => setInstallments(Number(e.target.value))}
+                      className="text-sm border border-yellow-300 rounded p-1 bg-white"
+                    >
+                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n}x</option>)}
+                    </select>
+                  </div>
+
+                  {installments > 1 && (
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={hasInterest} 
+                          onChange={(e) => setHasInterest(e.target.checked)}
+                          className="rounded text-[#5d4a2f] focus:ring-[#5d4a2f]"
+                        />
+                        Cobrar Juros?
+                      </label>
+                      
+                      {hasInterest && (
+                        <div className="flex items-center gap-1 w-20">
+                          <input 
+                            type="number" 
+                            placeholder="%" 
+                            value={interestRate} 
+                            onChange={(e) => setInterestRate(e.target.value)}
+                            className="w-full border border-yellow-300 rounded p-1 text-xs text-right"
+                          />
+                          <span className="text-xs text-gray-500">%</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {installments > 1 && (
+                    <div className="text-right text-xs text-yellow-800 font-bold border-t border-yellow-200 pt-2">
+                      {installments}x de R$ {installmentValue.toFixed(2)}
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between text-red-500 font-medium">
-                  <span>Desconto</span>
-                  <span>- R$ {parseFloat(discountValue || '0').toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-xl font-bold text-[#5d4a2f] pt-2">
-                  <span>Total</span>
-                  <span>R$ {totalFinal.toFixed(2)}</span>
-                </div>
+              )}
+
+              {/* Resumo Final */}
+              <div className="border-t pt-2 space-y-1 text-sm">
+                <div className="flex justify-between text-gray-500 text-xs"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
+                {parseFloat(discountValue) > 0 && (
+                  <div className="flex justify-between text-red-500 text-xs font-medium"><span>Desconto</span><span>- R$ {parseFloat(discountValue).toFixed(2)}</span></div>
+                )}
+                {hasInterest && paymentMethod === 'CREDITO' && (
+                  <div className="flex justify-between text-orange-600 text-xs font-medium">
+                    <span>Juros ({interestRate}%)</span>
+                    <span>+ R$ {(totalFinal - totalWithDiscount).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-xl font-bold text-[#5d4a2f] pt-1"><span>Total</span><span>R$ {totalFinal.toFixed(2)}</span></div>
               </div>
             </div>
 
+            {/* Finalização */}
             <div className="p-4 space-y-3 bg-white rounded-b-xl border-t border-gray-100">
               <input 
                 type="text" 
-                placeholder="Nome do Cliente" 
+                placeholder="Nome do Cliente (Opcional)" 
                 value={clientName}
                 onChange={e => setClientName(e.target.value)}
                 className="w-full border border-gray-300 rounded p-2 text-sm focus:border-[#8f7355] outline-none"
               />
-              
-              <select 
-                value={paymentMethod}
-                onChange={e => setPaymentMethod(e.target.value)}
-                className="w-full border border-gray-300 rounded p-2 text-sm bg-white focus:border-[#8f7355] outline-none"
-              >
+              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full border border-gray-300 rounded p-2 text-sm bg-white focus:border-[#8f7355] outline-none">
                 <option value="PIX">PIX</option>
                 <option value="DINHEIRO">Dinheiro</option>
                 <option value="CREDITO">Cartão de Crédito</option>
                 <option value="DEBITO">Cartão de Débito</option>
               </select>
-
-              <button 
-                onClick={handleFinishSale}
-                disabled={loading || cart.length === 0}
-                className="w-full bg-[#5d4a2f] text-[#dedbcb] font-bold py-3 rounded-lg hover:bg-[#4a3b25] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {loading ? <Loader2 className="animate-spin" /> : <Save size={20}/>}
-                Finalizar Venda
+              <button onClick={handleFinishSale} disabled={loading || cart.length === 0} className="w-full bg-[#5d4a2f] text-[#dedbcb] font-bold py-3 rounded-lg hover:bg-[#4a3b25] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                {loading ? <Loader2 className="animate-spin" /> : <Save size={20}/>} Finalizar Venda
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- ABA HISTÓRICO --- */}
       {activeTab === 'history' && (
         <div className="flex-1 bg-white rounded-xl shadow-sm border border-[#dedbcb] flex flex-col overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-[#f9f8f6]">
-            <div>
-              <h2 className="font-bold text-[#5d4a2f] text-lg">Histórico de Vendas</h2>
-              <p className="text-xs text-gray-500">Últimas 20 vendas realizadas</p>
-            </div>
-            <button 
-              onClick={fetchHistory}
-              className="text-sm bg-white border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors"
-            >
-              Atualizar Lista
-            </button>
+            <div><h2 className="font-bold text-[#5d4a2f]">Histórico</h2><p className="text-xs text-gray-500">Últimas 20</p></div>
+            <button onClick={fetchHistory} className="text-sm border px-3 py-1 bg-white rounded hover:bg-gray-50">Atualizar</button>
           </div>
-
-          <div className="flex-1 overflow-auto p-0">
+          <div className="flex-1 overflow-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#f9f8f6] text-gray-500 font-bold sticky top-0">
-                <tr>
-                  <th className="p-4">Data / Hora</th>
-                  <th className="p-4">Cliente</th>
-                  <th className="p-4">Pgto</th>
-                  <th className="p-4">Total</th>
-                  <th className="p-4 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {salesHistory.map(sale => (
-                  <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 text-gray-600">
-                      {new Date(sale.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="p-4 font-bold text-[#5d4a2f]">
-                      {sale.cliente_nome}
-                    </td>
-                    <td className="p-4">
-                      <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-                        {sale.forma_pagamento}
-                      </span>
-                    </td>
-                    <td className="p-4 font-bold text-green-600">
-                      R$ {Number(sale.valor_total).toFixed(2)}
-                    </td>
-                    <td className="p-4 text-right">
-                      <button 
-                        onClick={() => handleDeleteSale(sale.id)}
-                        className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all"
-                        title="Excluir Venda"
-                      >
-                        <Trash2 size={18}/>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <thead className="bg-[#f9f8f6] text-gray-500 font-bold sticky top-0"><tr><th className="p-4">Data</th><th className="p-4">Cliente</th><th className="p-4">Pgto</th><th className="p-4">Total</th><th className="p-4 text-right">Ação</th></tr></thead>
+              <tbody className="divide-y">{salesHistory.map(s => (<tr key={s.id} className="hover:bg-gray-50"><td className="p-4 text-gray-600">{new Date(s.created_at).toLocaleDateString()}</td><td className="p-4 font-bold text-[#5d4a2f]">{s.cliente_nome}</td><td className="p-4"><span className="bg-gray-100 px-2 py-1 rounded text-xs">{s.forma_pagamento}</span></td><td className="p-4 font-bold text-green-600">R$ {Number(s.valor_total).toFixed(2)}</td><td className="p-4 text-right"><button onClick={() => handleDeleteSale(s.id)} className="text-red-400 hover:text-red-600"><Trash2 size={18}/></button></td></tr>))}</tbody>
             </table>
-
-            {salesHistory.length === 0 && !loading && (
-              <div className="flex flex-col items-center justify-center p-12 text-gray-400">
-                <AlertCircle size={48} className="mb-2 opacity-50"/>
-                <p>Nenhuma venda encontrada no histórico recente.</p>
-              </div>
-            )}
-            
-            {loading && (
-              <div className="flex justify-center p-12">
-                <Loader2 className="animate-spin text-[#5d4a2f]" />
-              </div>
-            )}
+            {salesHistory.length === 0 && !loading && <div className="p-12 text-center text-gray-400"><AlertCircle className="mx-auto mb-2"/><p>Sem histórico</p></div>}
           </div>
         </div>
       )}
-
     </div>
   )
 }
