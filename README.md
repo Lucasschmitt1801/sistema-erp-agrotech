@@ -3,6 +3,7 @@
 > Sistema de gestão completo (Fullstack) focado em performance e resiliência para o varejo rural.
 
 ![Status do Projeto](https://img.shields.io/badge/Status-Em_Desenvolvimento-yellow) ![Next.js](https://img.shields.io/badge/Next.js-14-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
+[![Deploy](https://img.shields.io/badge/Ver_Projeto_Online-000?style=for-the-badge&logo=vercel&logoColor=white)](https://fabrica-gestao.vercel.app/login)
 
 ## 🎯 O Problema
 O varejo rural enfrenta um desafio constante: a necessidade de operar digitalmente em locais onde a conexão com a internet é instável ou inexistente. Planilhas e cadernos ainda eram a norma, gerando erros de caixa e falta de controle de estoque.
